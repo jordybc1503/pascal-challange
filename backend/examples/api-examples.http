@@ -1,0 +1,157 @@
+/**
+ * Postman Collection Examples
+ *
+ * Import these examples into Postman or use them with curl
+ */
+
+// 1. REGISTER
+/*
+POST http://localhost:3000/api/v1/auth/register
+Content-Type: application/json
+
+{
+  "email": "newagent@test.com",
+  "password": "password123",
+  "role": "SALES_AGENT"
+}
+*/
+
+// 2. LOGIN
+/*
+POST http://localhost:3000/api/v1/auth/login
+Content-Type: application/json
+
+{
+  "email": "agent1@test.com",
+  "password": "password123"
+}
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "user": {
+      "id": "uuid",
+      "email": "agent1@test.com",
+      "role": "SALES_AGENT"
+    }
+  }
+}
+*/
+
+// 3. GET ME
+/*
+GET http://localhost:3000/api/v1/auth/me
+Authorization: Bearer {{token}}
+*/
+
+// 4. GET CONVERSATIONS
+/*
+GET http://localhost:3000/api/v1/conversations
+Authorization: Bearer {{token}}
+
+# With filters
+GET http://localhost:3000/api/v1/conversations?priority=HIGH&tag=urgent&limit=10
+Authorization: Bearer {{token}}
+*/
+
+// 5. GET CONVERSATION BY ID
+/*
+GET http://localhost:3000/api/v1/conversations/{{conversationId}}
+Authorization: Bearer {{token}}
+*/
+
+// 6. ASSIGN CONVERSATION (Admin only)
+/*
+POST http://localhost:3000/api/v1/conversations/{{conversationId}}/assign
+Authorization: Bearer {{adminToken}}
+Content-Type: application/json
+
+{
+  "agentId": "agent-uuid-here"
+}
+
+# Unassign
+{
+  "agentId": null
+}
+*/
+
+// 7. GET MESSAGES
+/*
+GET http://localhost:3000/api/v1/conversations/{{conversationId}}/messages
+Authorization: Bearer {{token}}
+
+# With pagination
+GET http://localhost:3000/api/v1/conversations/{{conversationId}}/messages?limit=20&cursor={{lastMessageId}}
+Authorization: Bearer {{token}}
+*/
+
+// 8. SEND MESSAGE
+/*
+POST http://localhost:3000/api/v1/conversations/{{conversationId}}/messages
+Authorization: Bearer {{token}}
+Content-Type: application/json
+
+{
+  "contentText": "Hello! This is a test message.",
+  "contentType": "TEXT"
+}
+
+# Message with urgency keywords (will be marked as HIGH priority by AI)
+{
+  "contentText": "URGENT: This is a critical issue that needs immediate attention!",
+  "contentType": "TEXT"
+}
+*/
+
+// 9. DASHBOARD METRICS
+/*
+GET http://localhost:3000/api/v1/dashboard/metrics
+Authorization: Bearer {{token}}
+
+Response:
+{
+  "status": "success",
+  "data": {
+    "totalConversations": 150,
+    "totalUnreplied": 12,
+    "priorityBreakdown": {
+      "high": 8,
+      "medium": 45,
+      "low": 97,
+      "unanalyzed": 0
+    }
+  }
+}
+*/
+
+// CURL EXAMPLES:
+
+// Login
+/*
+curl -X POST http://localhost:3000/api/v1/auth/login \
+  -H "Content-Type: application/json" \
+  -d '{"email":"agent1@test.com","password":"password123"}'
+*/
+
+// Get conversations
+/*
+curl http://localhost:3000/api/v1/conversations \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+*/
+
+// Send message
+/*
+curl -X POST http://localhost:3000/api/v1/conversations/CONV_ID/messages \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE" \
+  -H "Content-Type: application/json" \
+  -d '{"contentText":"Test message with urgent keyword for AI analysis"}'
+*/
+
+// Get dashboard
+/*
+curl http://localhost:3000/api/v1/dashboard/metrics \
+  -H "Authorization: Bearer YOUR_TOKEN_HERE"
+*/

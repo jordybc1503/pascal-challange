@@ -1,0 +1,115 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserRole {
+  ADMIN
+  SALES_AGENT
+}
+
+enum SenderType {
+  LEAD
+  AGENT
+  SYSTEM
+}
+
+enum Priority {
+  HIGH
+  MEDIUM
+  LOW
+}
+
+enum ConversationStatus {
+  OPEN
+  PENDING
+  CLOSED
+}
+
+enum ContentType {
+  TEXT
+  IMAGE
+  FILE
+  AUDIO
+  VIDEO
+}
+
+model User {
+  id           String   @id @default(uuid())
+  email        String   @unique
+  passwordHash String   @map("password_hash")
+  role         UserRole @default(SALES_AGENT)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  assignedConversations Conversation[] @relation("AssignedAgent")
+  messages              Message[]
+
+  @@map("users")
+}
+
+model Lead {
+  id              String   @id @default(uuid())
+  name            String
+  email           String?
+  phone           String?
+  projectInterest String?  @map("project_interest")
+  metadata        Json?
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  conversations Conversation[]
+
+  @@map("leads")
+}
+
+model Conversation {
+  id                    String              @id @default(uuid())
+  leadId                String              @map("lead_id")
+  assignedAgentId       String?             @map("assigned_agent_id")
+  status                ConversationStatus  @default(OPEN)
+  lastMessageAt         DateTime?           @map("last_message_at")
+  lastMessageSenderType SenderType?         @map("last_message_sender_type")
+  lastAgentReplyAt      DateTime?           @map("last_agent_reply_at")
+  aiSummary             String?             @map("ai_summary")
+  aiPriority            Priority?           @map("ai_priority")
+  aiTags                String[]            @default([]) @map("ai_tags")
+  aiUpdatedAt           DateTime?           @map("ai_updated_at")
+  createdAt             DateTime            @default(now()) @map("created_at")
+  updatedAt             DateTime            @updatedAt @map("updated_at")
+
+  // Relations
+  lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
+  assignedAgent User?     @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
+  messages      Message[]
+
+  @@index([assignedAgentId])
+  @@index([lastMessageAt])
+  @@index([aiPriority])
+  @@index([status])
+  @@map("conversations")
+}
+
+model Message {
+  id             String      @id @default(uuid())
+  conversationId String      @map("conversation_id")
+  senderType     SenderType  @map("sender_type")
+  senderUserId   String?     @map("sender_user_id")
+  contentText    String      @map("content_text")
+  contentType    ContentType @default(TEXT) @map("content_type")
+  mediaUrl       String?     @map("media_url")
+  createdAt      DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderUser   User?        @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
+
+  @@index([conversationId, createdAt])
+  @@map("messages")
+}
