@@ -30,9 +30,20 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
       }
 
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
-      socket.user = decoded;
 
-      logger.debug({ userId: decoded.userId, socketId: socket.id }, 'Socket authenticated');
+      // CRITICAL: Validate tenantId in JWT
+      if (!decoded.tenantId) {
+        return next(new Error('Authentication error: Missing tenant'));
+      }
+
+      socket.user = decoded;
+      socket.data.tenantId = decoded.tenantId;
+
+      logger.debug({
+        userId: decoded.userId,
+        tenantId: decoded.tenantId,
+        socketId: socket.id
+      }, 'Socket authenticated');
 
       next();
     } catch (error) {
@@ -42,39 +53,48 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
   });
 
   io.on('connection', (socket: AuthenticatedSocket) => {
-    logger.info({ userId: socket.user?.userId, socketId: socket.id }, 'Socket connected');
+    const tenantId = socket.data.tenantId;
+    logger.info({
+      userId: socket.user?.userId,
+      tenantId,
+      socketId: socket.id
+    }, 'Socket connected');
 
-    // Join conversation room
+    // Join conversation room with tenant prefix
     socket.on('conversation:join', (conversationId: string) => {
-      socket.join(`conversation:${conversationId}`);
+      const room = `tenant:${tenantId}:conversation:${conversationId}`;
+      socket.join(room);
       logger.debug(
-        { userId: socket.user?.userId, conversationId, socketId: socket.id },
+        { userId: socket.user?.userId, tenantId, conversationId, socketId: socket.id },
         'User joined conversation room'
       );
     });
 
     // Leave conversation room
     socket.on('conversation:leave', (conversationId: string) => {
-      socket.leave(`conversation:${conversationId}`);
+      const room = `tenant:${tenantId}:conversation:${conversationId}`;
+      socket.leave(room);
       logger.debug(
-        { userId: socket.user?.userId, conversationId, socketId: socket.id },
+        { userId: socket.user?.userId, tenantId, conversationId, socketId: socket.id },
         'User left conversation room'
       );
     });
 
-    // Typing indicators
+    // Typing indicators with tenant scope
     socket.on('typing:start', (conversationId: string) => {
-      socket.to(`conversation:${conversationId}`).emit('typing:start', {
+      const room = `tenant:${tenantId}:conversation:${conversationId}`;
+      socket.to(room).emit('typing:start', {
         userId: socket.user?.userId,
         email: socket.user?.email,
         conversationId,
       });
 
-      logger.debug({ userId: socket.user?.userId, conversationId }, 'User started typing');
+      logger.debug({ userId: socket.user?.userId, tenantId, conversationId }, 'User started typing');
     });
 
     socket.on('typing:stop', (conversationId: string) => {
-      socket.to(`conversation:${conversationId}`).emit('typing:stop', {
+      const room = `tenant:${tenantId}:conversation:${conversationId}`;
+      socket.to(room).emit('typing:stop', {
         userId: socket.user?.userId,
         email: socket.user?.email,
         conversationId,

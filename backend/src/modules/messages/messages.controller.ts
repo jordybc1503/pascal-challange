@@ -1,13 +1,13 @@
 import { Response, NextFunction } from 'express';
 import { messagesService } from './messages.service.js';
 import { sendSuccess } from '../../utils/response.js';
-import { AuthRequest } from '../../middlewares/auth.js';
-import { aiJobProducer } from '../../jobs/producer.js';
+import { TenantRequest } from '../../middlewares/tenant.js';
+import { queueJob } from '../../jobs/producer.js';
 import { emitNewMessage } from '../../sockets/events.js';
 import { ContentType } from '@prisma/client';
 
 export class MessagesController {
-  async getMessages(req: AuthRequest, res: Response, next: NextFunction) {
+  async getMessages(req: TenantRequest, res: Response, next: NextFunction) {
     try {
       const { id: conversationId } = req.params;
       const { limit, cursor } = req.query;
@@ -18,6 +18,7 @@ export class MessagesController {
         cursor: cursor as string | undefined,
         userId: req.user!.userId,
         userRole: req.user!.role,
+        tenantId: req.tenantId!, // CRITICAL: Pass tenant ID
       });
 
       sendSuccess(res, result);
@@ -26,7 +27,7 @@ export class MessagesController {
     }
   }
 
-  async createMessage(req: AuthRequest, res: Response, next: NextFunction) {
+  async createMessage(req: TenantRequest, res: Response, next: NextFunction) {
     try {
       const { id: conversationId } = req.params;
       const { contentText, contentType, mediaUrl } = req.body;
@@ -38,13 +39,17 @@ export class MessagesController {
         mediaUrl,
         userId: req.user!.userId,
         userRole: req.user!.role,
+        tenantId: req.tenantId!, // CRITICAL: Pass tenant ID
       });
 
-      // Emit socket event for new message
-      emitNewMessage(conversationId, message);
+      // Emit socket event for new message (with tenant scope)
+      emitNewMessage(conversationId, req.tenantId!, message);
 
-      // Enqueue AI analysis job (with debouncing handled by BullMQ)
-      await aiJobProducer.enqueueConversationAnalysis(conversationId);
+      // Enqueue AI analysis job with tenantId
+      await queueJob('AI_ANALYZE_CONVERSATION', {
+        tenantId: req.tenantId!,
+        conversationId,
+      });
 
       sendSuccess(res, message, 201);
     } catch (error) {

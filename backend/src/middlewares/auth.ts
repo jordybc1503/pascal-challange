@@ -8,6 +8,7 @@ export interface JWTPayload {
   userId: string;
   email: string;
   role: UserRole;
+  tenantId: string;
 }
 
 export interface AuthRequest extends Request {
@@ -26,9 +27,18 @@ export const authenticate = (req: AuthRequest, res: Response, next: NextFunction
 
     try {
       const decoded = jwt.verify(token, config.jwt.secret) as JWTPayload;
+
+      // Validate required JWT fields including tenantId
+      if (!decoded.userId || !decoded.email || !decoded.role || !decoded.tenantId) {
+        throw new UnauthorizedError('Invalid token payload');
+      }
+
       req.user = decoded;
       next();
     } catch (error) {
+      if (error instanceof UnauthorizedError) {
+        throw error;
+      }
       throw new UnauthorizedError('Invalid or expired token');
     }
   } catch (error) {

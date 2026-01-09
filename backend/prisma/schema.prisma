@@ -8,7 +8,7 @@ datasource db {
 }
 
 enum UserRole {
-  ADMIN
+  TENANT_ADMIN
   SALES_AGENT
 }
 
@@ -38,23 +38,104 @@ enum ContentType {
   VIDEO
 }
 
+enum WhatsAppProvider {
+  META
+  TWILIO
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  READ
+  FAILED
+}
+
+// ============================================
+// MULTI-TENANT MODELS
+// ============================================
+
+model Tenant {
+  id        String   @id @default(uuid())
+  name      String
+  slug      String   @unique
+  ruc       String?  @unique // RUC/Tax ID - optional and unique
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  users             User[]
+  leads             Lead[]
+  conversations     Conversation[]
+  messages          Message[]
+  whatsappChannels  WhatsAppChannel[]
+  whatsappCredentials WhatsAppCredential[]
+
+  @@map("tenants")
+}
+
 model User {
   id           String   @id @default(uuid())
-  email        String   @unique
+  tenantId     String   @map("tenant_id")
+  email        String
   passwordHash String   @map("password_hash")
   role         UserRole @default(SALES_AGENT)
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
   // Relations
+  tenant                Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   assignedConversations Conversation[] @relation("AssignedAgent")
   messages              Message[]
 
+  @@unique([tenantId, email])
+  @@index([tenantId])
   @@map("users")
+}
+
+model WhatsAppChannel {
+  id                String           @id @default(uuid())
+  tenantId          String           @map("tenant_id")
+  provider          WhatsAppProvider
+  displayName       String           @map("display_name")
+  phoneNumber       String           @map("phone_number")
+  providerAccountId String           @map("provider_account_id") // phone_number_id for Meta, AccountSid for Twilio
+  isActive          Boolean          @default(true) @map("is_active")
+  createdAt         DateTime         @default(now()) @map("created_at")
+  updatedAt         DateTime         @updatedAt @map("updated_at")
+
+  // Relations
+  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credentials WhatsAppCredential[]
+
+  @@unique([tenantId, providerAccountId])
+  @@index([tenantId])
+  @@index([providerAccountId])
+  @@map("whatsapp_channels")
+}
+
+model WhatsAppCredential {
+  id                   String   @id @default(uuid())
+  tenantId             String   @map("tenant_id")
+  channelId            String   @map("channel_id")
+  encryptedAccessToken String   @map("encrypted_access_token") @db.Text
+  encryptedSecret      String?  @map("encrypted_secret") @db.Text
+  webhookVerifyToken   String?  @map("webhook_verify_token")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  tenant  Tenant          @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  channel WhatsAppChannel @relation(fields: [channelId], references: [id], onDelete: Cascade)
+
+  @@unique([channelId])
+  @@index([tenantId])
+  @@map("whatsapp_credentials")
 }
 
 model Lead {
   id              String   @id @default(uuid())
+  tenantId        String   @map("tenant_id")
   name            String
   email           String?
   phone           String?
@@ -64,13 +145,18 @@ model Lead {
   updatedAt       DateTime @updatedAt @map("updated_at")
 
   // Relations
+  tenant        Tenant         @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversations Conversation[]
 
+  @@unique([tenantId, phone])
+  @@index([tenantId])
+  @@index([phone])
   @@map("leads")
 }
 
 model Conversation {
   id                    String              @id @default(uuid())
+  tenantId              String              @map("tenant_id")
   leadId                String              @map("lead_id")
   assignedAgentId       String?             @map("assigned_agent_id")
   status                ConversationStatus  @default(OPEN)
@@ -85,10 +171,13 @@ model Conversation {
   updatedAt             DateTime            @updatedAt @map("updated_at")
 
   // Relations
+  tenant        Tenant    @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   lead          Lead      @relation(fields: [leadId], references: [id], onDelete: Cascade)
   assignedAgent User?     @relation("AssignedAgent", fields: [assignedAgentId], references: [id], onDelete: SetNull)
   messages      Message[]
 
+  @@index([tenantId])
+  @@index([leadId])
   @@index([assignedAgentId])
   @@index([lastMessageAt])
   @@index([aiPriority])
@@ -97,19 +186,28 @@ model Conversation {
 }
 
 model Message {
-  id             String      @id @default(uuid())
-  conversationId String      @map("conversation_id")
-  senderType     SenderType  @map("sender_type")
-  senderUserId   String?     @map("sender_user_id")
-  contentText    String      @map("content_text")
-  contentType    ContentType @default(TEXT) @map("content_type")
-  mediaUrl       String?     @map("media_url")
-  createdAt      DateTime    @default(now()) @map("created_at")
+  id                String            @id @default(uuid())
+  tenantId          String            @map("tenant_id")
+  conversationId    String            @map("conversation_id")
+  senderType        SenderType        @map("sender_type")
+  senderUserId      String?           @map("sender_user_id")
+  contentText       String            @map("content_text")
+  contentType       ContentType       @default(TEXT) @map("content_type")
+  mediaUrl          String?           @map("media_url")
+  externalProvider  WhatsAppProvider? @map("external_provider")
+  externalMessageId String?           @map("external_message_id")
+  status            MessageStatus     @default(PENDING)
+  createdAt         DateTime          @default(now()) @map("created_at")
+  updatedAt         DateTime          @updatedAt @map("updated_at")
 
   // Relations
+  tenant       Tenant       @relation(fields: [tenantId], references: [id], onDelete: Cascade)
   conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
   senderUser   User?        @relation(fields: [senderUserId], references: [id], onDelete: SetNull)
 
-  @@index([conversationId, createdAt])
+  @@index([tenantId])
+  @@index([conversationId])
+  @@index([senderUserId])
+  @@index([externalMessageId])
   @@map("messages")
 }

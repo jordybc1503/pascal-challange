@@ -1,9 +1,11 @@
 import { prisma } from '../../db/client.js';
-import { UserRole, SenderType } from '@prisma/client';
+import { UserRole, SenderType, Prisma } from '@prisma/client';
 
 export class DashboardService {
-  async getMetrics(userId: string, userRole: UserRole) {
-    const where: any = {};
+  async getMetrics(tenantId: string, userId: string, userRole: UserRole) {
+    const where: Prisma.ConversationWhereInput = {
+      tenantId, // CRITICAL: Scope by tenant
+    };
 
     // RBAC: sales agents only see their assigned conversations
     if (userRole === UserRole.SALES_AGENT) {

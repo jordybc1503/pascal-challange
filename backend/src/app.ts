@@ -2,7 +2,9 @@ import express, { Application } from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import { config } from './config/env.js';
+import { swaggerSpec } from './config/swagger.js';
 import { errorHandler } from './middlewares/errorHandler.js';
 import { logger } from './utils/logger.js';
 
@@ -11,6 +13,9 @@ import authRoutes from './modules/auth/auth.routes.js';
 import conversationsRoutes from './modules/conversations/conversations.routes.js';
 import messagesRoutes from './modules/messages/messages.routes.js';
 import dashboardRoutes from './modules/dashboard/dashboard.routes.js';
+import tenantRoutes from './modules/tenants/tenants.routes.js';
+import whatsappRoutes from './modules/whatsapp/whatsapp.routes.js';
+import usersRoutes from './modules/users/users.routes.js';
 
 export const createApp = (): Application => {
   const app = express();
@@ -57,12 +62,30 @@ export const createApp = (): Application => {
     });
   });
 
+  // Swagger UI Documentation
+  app.use('/api-docs', swaggerUi.serve, swaggerUi.setup(swaggerSpec, {
+    customSiteTitle: 'WhatsApp Messaging System API',
+    customCss: '.swagger-ui .topbar { display: none }',
+    swaggerOptions: {
+      persistAuthorization: true,
+    },
+  }));
+
+  // Swagger JSON
+  app.get('/api-docs.json', (_req, res) => {
+    res.setHeader('Content-Type', 'application/json');
+    res.send(swaggerSpec);
+  });
+
   // API routes
   const apiPrefix = config.apiPrefix;
   app.use(`${apiPrefix}/auth`, authRoutes);
+  app.use(`${apiPrefix}/tenants`, tenantRoutes);
+  app.use(`${apiPrefix}/users`, usersRoutes);
   app.use(`${apiPrefix}/conversations`, conversationsRoutes);
   app.use(`${apiPrefix}/conversations`, messagesRoutes);
   app.use(`${apiPrefix}/dashboard`, dashboardRoutes);
+  app.use(`${apiPrefix}/whatsapp`, whatsappRoutes);
 
   // 404 handler
   app.use((req, res) => {

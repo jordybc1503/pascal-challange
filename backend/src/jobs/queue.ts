@@ -7,6 +7,7 @@ export const AI_ANALYZE_CONVERSATION = 'AI_ANALYZE_CONVERSATION';
 
 export interface AIAnalyzeConversationJobData {
   conversationId: string;
+  tenantId: string; // CRITICAL: Required for tenant isolation
 }
 
 export const aiQueue = new Queue(config.bullmq.queueName, {

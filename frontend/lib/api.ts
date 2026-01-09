@@ -52,9 +52,9 @@ async function fetchApi<T>(
   schema?: (data: unknown) => T
 ): Promise<T> {
   const token = getAuthToken();
-  const headers: HeadersInit = {
+  const headers: Record<string, string> = {
     'Content-Type': 'application/json',
-    ...options.headers,
+    ...(options.headers as Record<string, string> || {}),
   };
 
   if (token) {
@@ -90,7 +90,7 @@ async function fetchApi<T>(
 // Auth API
 export const authApi = {
   login: async (email: string, password: string): Promise<AuthResponse> => {
-    const response = await fetchApi(
+    const response = await fetchApi<AuthResponse>(
       '/auth/login',
       {
         method: 'POST',
@@ -99,6 +99,10 @@ export const authApi = {
       (data) => ApiResponseSchema(AuthResponseSchema).parse(data).data
     );
     setAuthToken(response.token);
+    // Store tenant info
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('tenant', JSON.stringify(response.tenant));
+    }
     return response;
   },
 
@@ -110,6 +114,9 @@ export const authApi = {
 
   logout: () => {
     setAuthToken(null);
+    if (typeof window !== 'undefined') {
+      localStorage.removeItem('tenant');
+    }
   },
 };
 

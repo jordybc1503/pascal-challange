@@ -8,6 +8,7 @@ import { toast } from 'sonner';
 import { useAuth } from '@/hooks/useAuth';
 import { LoginSchema, type LoginData } from '@/lib/schemas';
 import { LogIn } from 'lucide-react';
+import Link from 'next/link';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -64,7 +65,7 @@ export default function LoginPage() {
               type="email"
               autoComplete="email"
               className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent"
-              placeholder="admin@example.com"
+              placeholder="admin@acme.com"
             />
             {errors.email && (
               <p className="mt-1 text-sm text-red-600">{errors.email.message}</p>
@@ -97,10 +98,27 @@ export default function LoginPage() {
           </button>
         </form>
 
+        <div className="mt-4 text-center">
+          <p className="text-sm text-gray-600">
+            Don't have a company account?{' '}
+            <Link href="/register" className="text-blue-600 hover:text-blue-700 font-medium">
+              Create one here
+            </Link>
+          </p>
+        </div>
+
         <div className="mt-6 text-center text-sm text-gray-600">
-          <p>Demo accounts:</p>
-          <p className="mt-1">Admin: admin@example.com / admin123</p>
-          <p>Agent: agent@example.com / agent123</p>
+          <p className="font-semibold mb-2">Demo Accounts:</p>
+          <div className="space-y-2">
+            <div className="p-2 bg-gray-50 rounded">
+              <p className="font-medium">Acme Software Corp</p>
+              <p className="text-xs">Admin: admin@acme.com / password123</p>
+            </div>
+            <div className="p-2 bg-gray-50 rounded">
+              <p className="font-medium">TechStart Solutions</p>
+              <p className="text-xs">Admin: admin@techstart.com / password123</p>
+            </div>
+          </div>
         </div>
       </div>
     </div>

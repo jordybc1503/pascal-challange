@@ -5,8 +5,7 @@ import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
 
 export function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const { initialize, user } = useAuth();
-  const router = useRouter();
+  const { initialize } = useAuth();
 
   useEffect(() => {
     initialize();

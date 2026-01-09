@@ -1,6 +1,7 @@
 import { prisma } from '../../db/client.js';
 import { NotFoundError, ForbiddenError, BadRequestError } from '../../utils/errors.js';
-import { UserRole, Priority } from '@prisma/client';
+import { UserRole, Priority, Prisma } from '@prisma/client';
+import { serialize } from '../../utils/serializer.js';
 
 interface GetConversationsFilters {
   priority?: Priority;
@@ -10,13 +11,16 @@ interface GetConversationsFilters {
   cursor?: string;
   userId: string;
   userRole: UserRole;
+  tenantId: string;
 }
 
 export class ConversationsService {
   async getConversations(filters: GetConversationsFilters) {
-    const { priority, tag, search, limit = 20, cursor, userId, userRole } = filters;
+    const { priority, tag, search, limit = 20, cursor, userId, userRole, tenantId } = filters;
 
-    const where: any = {};
+    const where: Prisma.ConversationWhereInput = {
+      tenantId, // CRITICAL: Scope by tenant
+    };
 
     // RBAC: sales agents can only see their assigned conversations
     if (userRole === UserRole.SALES_AGENT) {
@@ -77,7 +81,7 @@ export class ConversationsService {
     const nextCursor = hasNextPage ? items[items.length - 1].id : null;
 
     return {
-      items,
+      items: serialize(items),
       pagination: {
         nextCursor,
         hasNextPage,
@@ -85,9 +89,12 @@ export class ConversationsService {
     };
   }
 
-  async getConversationById(conversationId: string, userId: string, userRole: UserRole) {
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+  async getConversationById(conversationId: string, tenantId: string, userId: string, userRole: UserRole) {
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        tenantId, // CRITICAL: Scope by tenant
+      },
       include: {
         lead: true,
         assignedAgent: {
@@ -114,17 +121,20 @@ export class ConversationsService {
       throw new ForbiddenError('You do not have access to this conversation');
     }
 
-    return conversation;
+    return serialize(conversation);
   }
 
-  async assignConversation(conversationId: string, agentId: string | null, requestingUserId: string, requestingUserRole: UserRole) {
-    // Only admins can assign conversations
-    if (requestingUserRole !== UserRole.ADMIN) {
-      throw new ForbiddenError('Only admins can assign conversations');
+  async assignConversation(conversationId: string, agentId: string | null, tenantId: string, requestingUserRole: UserRole) {
+    // Only tenant admins can assign conversations
+    if (requestingUserRole !== UserRole.TENANT_ADMIN) {
+      throw new ForbiddenError('Only tenant admins can assign conversations');
     }
 
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        tenantId, // CRITICAL: Scope by tenant
+      },
     });
 
     if (!conversation) {
@@ -132,15 +142,18 @@ export class ConversationsService {
     }
 
     if (agentId) {
-      const agent = await prisma.user.findUnique({
-        where: { id: agentId },
+      const agent = await prisma.user.findFirst({
+        where: {
+          id: agentId,
+          tenantId, // CRITICAL: Ensure agent belongs to same tenant
+        },
       });
 
       if (!agent) {
-        throw new BadRequestError('Agent not found');
+        throw new BadRequestError('Agent not found in this tenant');
       }
 
-      if (agent.role !== UserRole.SALES_AGENT && agent.role !== UserRole.ADMIN) {
+      if (agent.role !== UserRole.SALES_AGENT && agent.role !== UserRole.TENANT_ADMIN) {
         throw new BadRequestError('User is not a sales agent or admin');
       }
     }
@@ -159,7 +172,7 @@ export class ConversationsService {
       },
     });
 
-    return updated;
+    return serialize(updated);
   }
 }
 

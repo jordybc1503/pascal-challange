@@ -8,24 +8,38 @@ class AIJobProducer {
    * If a job for the same conversation is already pending, it will be delayed.
    * This prevents duplicate analysis when multiple messages arrive in quick succession.
    */
-  async enqueueConversationAnalysis(conversationId: string): Promise<void> {
+  async enqueueConversationAnalysis(conversationId: string, tenantId: string): Promise<void> {
     try {
       const jobData: AIAnalyzeConversationJobData = {
         conversationId,
+        tenantId, // CRITICAL: Include for tenant isolation in worker
       };
 
       await aiQueue.add(AI_ANALYZE_CONVERSATION, jobData, {
-        jobId: `analyze-${conversationId}`, // Same jobId ensures deduplication
+        jobId: `analyze-${tenantId}-${conversationId}`, // Tenant-scoped jobId for deduplication
         delay: config.ai.debounceMs, // Debounce delay
         // If a job with the same jobId exists, it will be replaced
       });
 
-      logger.debug({ conversationId }, 'AI analysis job enqueued');
+      logger.debug({ conversationId, tenantId }, 'AI analysis job enqueued');
     } catch (error) {
-      logger.error({ error, conversationId }, 'Failed to enqueue AI analysis job');
+      logger.error({ error, conversationId, tenantId }, 'Failed to enqueue AI analysis job');
       throw error;
     }
   }
 }
 
 export const aiJobProducer = new AIJobProducer();
+
+/**
+ * Helper function to queue an AI analysis job
+ * @deprecated Use aiJobProducer.enqueueConversationAnalysis directly
+ */
+export async function queueJob(
+  jobType: 'AI_ANALYZE_CONVERSATION',
+  data: AIAnalyzeConversationJobData
+): Promise<void> {
+  if (jobType === 'AI_ANALYZE_CONVERSATION') {
+    await aiJobProducer.enqueueConversationAnalysis(data.conversationId, data.tenantId);
+  }
+}

@@ -3,13 +3,15 @@
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter, usePathname } from 'next/navigation';
 import Link from 'next/link';
-import { Inbox, BarChart3, LogOut, User } from 'lucide-react';
+import { Inbox, BarChart3, LogOut, User, Users, Settings } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { RequireAuth } from '@/providers/AuthProvider';
 
 const navigation = [
   { name: 'Inbox', href: '/inbox', icon: Inbox },
   { name: 'Dashboard', href: '/dashboard', icon: BarChart3 },
+  { name: 'Users', href: '/users', icon: Users, adminOnly: true },
+  { name: 'WhatsApp Config', href: '/settings/whatsapp', icon: Settings, adminOnly: true },
 ];
 
 export default function AppLayout({ children }: { children: React.ReactNode }) {
@@ -33,6 +35,11 @@ export default function AppLayout({ children }: { children: React.ReactNode }) {
 
           <nav className="flex-1 p-4 space-y-1">
             {navigation.map((item) => {
+              // Hide admin-only items for non-admins
+              if (item.adminOnly && user?.role !== 'TENANT_ADMIN') {
+                return null;
+              }
+
               const Icon = item.icon;
               const isActive = pathname.startsWith(item.href);
               return (

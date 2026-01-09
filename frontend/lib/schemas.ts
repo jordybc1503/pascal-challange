@@ -1,27 +1,38 @@
 import { z } from 'zod';
 
 // Enums
-export const UserRole = z.enum(['ADMIN', 'SALES_AGENT']);
+export const UserRole = z.enum(['TENANT_ADMIN', 'SALES_AGENT']);
 export const SenderType = z.enum(['LEAD', 'AGENT', 'SYSTEM']);
 export const Priority = z.enum(['HIGH', 'MEDIUM', 'LOW']);
 export const ContentType = z.enum(['TEXT', 'IMAGE', 'FILE', 'AUDIO', 'VIDEO']);
+
+// Tenant schema
+export const TenantSchema = z.object({
+  id: z.string(),
+  name: z.string(),
+  slug: z.string(),
+  ruc: z.string().nullable().optional(),
+});
 
 // Auth schemas
 export const LoginSchema = z.object({
   email: z.string().email('Invalid email'),
   password: z.string().min(1, 'Password is required'),
+
 });
 
 export const UserSchema = z.object({
   id: z.string(),
   email: z.string().email(),
   role: UserRole,
+  tenantId: z.string(),
   createdAt: z.string(),
 });
 
 export const AuthResponseSchema = z.object({
   token: z.string(),
   user: UserSchema,
+  tenant: TenantSchema,
 });
 
 // Lead schema
@@ -147,6 +158,7 @@ export type Priority = z.infer<typeof Priority>;
 export type ContentType = z.infer<typeof ContentType>;
 export type LoginData = z.infer<typeof LoginSchema>;
 export type User = z.infer<typeof UserSchema>;
+export type Tenant = z.infer<typeof TenantSchema>;
 export type AuthResponse = z.infer<typeof AuthResponseSchema>;
 export type Lead = z.infer<typeof LeadSchema>;
 export type Conversation = z.infer<typeof ConversationSchema>;

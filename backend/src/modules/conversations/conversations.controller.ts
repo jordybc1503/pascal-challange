@@ -1,11 +1,11 @@
 import { Response, NextFunction } from 'express';
 import { conversationsService } from './conversations.service.js';
 import { sendSuccess } from '../../utils/response.js';
-import { AuthRequest } from '../../middlewares/auth.js';
+import { TenantRequest } from '../../middlewares/tenant.js';
 import { Priority } from '@prisma/client';
 
 export class ConversationsController {
-  async getConversations(req: AuthRequest, res: Response, next: NextFunction) {
+  async getConversations(req: TenantRequest, res: Response, next: NextFunction) {
     try {
       const { priority, tag, search, limit, cursor } = req.query;
 
@@ -17,6 +17,7 @@ export class ConversationsController {
         cursor: cursor as string | undefined,
         userId: req.user!.userId,
         userRole: req.user!.role,
+        tenantId: req.tenantId!, // CRITICAL: Pass tenant ID
       });
 
       sendSuccess(res, result);
@@ -25,12 +26,13 @@ export class ConversationsController {
     }
   }
 
-  async getConversationById(req: AuthRequest, res: Response, next: NextFunction) {
+  async getConversationById(req: TenantRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
 
       const conversation = await conversationsService.getConversationById(
         id,
+        req.tenantId!, // CRITICAL: Pass tenant ID
         req.user!.userId,
         req.user!.role
       );
@@ -41,7 +43,7 @@ export class ConversationsController {
     }
   }
 
-  async assignConversation(req: AuthRequest, res: Response, next: NextFunction) {
+  async assignConversation(req: TenantRequest, res: Response, next: NextFunction) {
     try {
       const { id } = req.params;
       const { agentId } = req.body;
@@ -49,7 +51,7 @@ export class ConversationsController {
       const conversation = await conversationsService.assignConversation(
         id,
         agentId,
-        req.user!.userId,
+        req.tenantId!, // CRITICAL: Pass tenant ID
         req.user!.role
       );
 

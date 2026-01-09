@@ -16,8 +16,8 @@ export class AuthController {
 
   async register(req: Request, res: Response, next: NextFunction) {
     try {
-      const { email, password, role } = req.body;
-      const result = await authService.register(email, password, role);
+      const { email, password, tenantSlug, role } = req.body;
+      const result = await authService.register(email, password, tenantSlug, role);
       sendSuccess(res, result, 201);
     } catch (error) {
       next(error);
@@ -26,7 +26,7 @@ export class AuthController {
 
   async me(req: AuthRequest, res: Response, next: NextFunction) {
     try {
-      const user = await authService.getMe(req.user!.userId);
+      const user = await authService.getMe(req.user!.userId, req.user!.tenantId);
       sendSuccess(res, user);
     } catch (error) {
       next(error);

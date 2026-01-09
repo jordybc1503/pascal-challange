@@ -42,24 +42,32 @@ export const createAIWorker = () => {
 };
 
 async function processConversationAnalysis(job: Job<AIAnalyzeConversationJobData>) {
-  const { conversationId } = job.data;
+  const { conversationId, tenantId } = job.data;
 
-  logger.info({ conversationId, jobId: job.id }, 'Processing conversation analysis');
+  logger.info({ conversationId, tenantId, jobId: job.id }, 'Processing conversation analysis');
 
   try {
-    // Fetch the conversation to ensure it exists
+    // Fetch the conversation to ensure it exists (tenant-scoped)
     const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+      where: {
+        id: conversationId,
+        tenantId, // CRITICAL: Ensure tenant isolation
+      },
     });
 
     if (!conversation) {
-      logger.warn({ conversationId }, 'Conversation not found, skipping analysis');
+      logger.warn({ conversationId, tenantId }, 'Conversation not found, skipping analysis');
       return { skipped: true, reason: 'conversation_not_found' };
     }
 
-    // Fetch the last N messages (e.g., 30)
+    // Fetch the last N messages (e.g., 30) - tenant-scoped via conversation
     const messages = await prisma.message.findMany({
-      where: { conversationId },
+      where: {
+        conversationId,
+        conversation: {
+          tenantId, // CRITICAL: Verify tenant ownership
+        },
+      },
       orderBy: { createdAt: 'desc' },
       take: 30,
       select: {
@@ -71,7 +79,7 @@ async function processConversationAnalysis(job: Job<AIAnalyzeConversationJobData
     });
 
     if (messages.length === 0) {
-      logger.info({ conversationId }, 'No messages to analyze');
+      logger.info({ conversationId, tenantId }, 'No messages to analyze');
       return { analyzed: false, reason: 'no_messages' };
     }
 
@@ -99,8 +107,8 @@ async function processConversationAnalysis(job: Job<AIAnalyzeConversationJobData
       },
     });
 
-    // Emit socket event to notify clients
-    emitConversationAIUpdate(conversationId, {
+    // Emit socket event to notify clients (tenant-scoped)
+    emitConversationAIUpdate(conversationId, tenantId, {
       summary: updated.aiSummary,
       priority: updated.aiPriority,
       tags: updated.aiTags,

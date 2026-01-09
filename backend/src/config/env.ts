@@ -13,6 +13,12 @@ const envSchema = z.object({
   JWT_SECRET: z.string(),
   JWT_EXPIRES_IN: z.string().default('7d'),
 
+  // Encryption
+  MASTER_KEY: z.string(),
+
+  // Multi-tenant
+  BOOTSTRAP_MODE: z.string().default('false'),
+
   REDIS_HOST: z.string().default('localhost'),
   REDIS_PORT: z.string().default('6379'),
   REDIS_PASSWORD: z.string().optional(),
@@ -29,6 +35,9 @@ const envSchema = z.object({
 
   BULLMQ_QUEUE_NAME: z.string().default('ai-analysis'),
   BULLMQ_CONCURRENCY: z.string().default('5'),
+
+  // WhatsApp
+  WHATSAPP_WEBHOOK_PUBLIC_URL: z.string().optional(),
 
   LOG_LEVEL: z.enum(['fatal', 'error', 'warn', 'info', 'debug', 'trace']).default('info'),
 });
@@ -52,6 +61,14 @@ export const config = {
   jwt: {
     secret: parsed.data.JWT_SECRET,
     expiresIn: parsed.data.JWT_EXPIRES_IN,
+  },
+
+  encryption: {
+    masterKey: parsed.data.MASTER_KEY,
+  },
+
+  multiTenant: {
+    bootstrapMode: parsed.data.BOOTSTRAP_MODE === 'true',
   },
 
   redis: {
@@ -79,6 +96,10 @@ export const config = {
   bullmq: {
     queueName: parsed.data.BULLMQ_QUEUE_NAME,
     concurrency: parseInt(parsed.data.BULLMQ_CONCURRENCY, 10),
+  },
+
+  whatsapp: {
+    webhookPublicUrl: parsed.data.WHATSAPP_WEBHOOK_PUBLIC_URL,
   },
 
   log: {

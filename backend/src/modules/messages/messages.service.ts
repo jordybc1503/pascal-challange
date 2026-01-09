@@ -1,6 +1,9 @@
 import { prisma } from '../../db/client.js';
 import { NotFoundError, ForbiddenError } from '../../utils/errors.js';
 import { UserRole, SenderType, ContentType } from '@prisma/client';
+import { serialize } from '../../utils/serializer.js';
+import { whatsAppService } from '../whatsapp/whatsapp.service.js';
+import { logger } from '../../utils/logger.js';
 
 interface GetMessagesParams {
   conversationId: string;
@@ -8,6 +11,7 @@ interface GetMessagesParams {
   cursor?: string;
   userId: string;
   userRole: UserRole;
+  tenantId: string;
 }
 
 interface CreateMessageParams {
@@ -17,15 +21,19 @@ interface CreateMessageParams {
   mediaUrl?: string | null;
   userId: string;
   userRole: UserRole;
+  tenantId: string;
 }
 
 export class MessagesService {
   async getMessages(params: GetMessagesParams) {
-    const { conversationId, limit = 50, cursor, userId, userRole } = params;
+    const { conversationId, limit = 50, cursor, userId, userRole, tenantId } = params;
 
-    // Check conversation access
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+    // Check conversation access with tenant scope
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        tenantId, // CRITICAL: Scope by tenant
+      },
     });
 
     if (!conversation) {
@@ -38,7 +46,10 @@ export class MessagesService {
     }
 
     const messages = await prisma.message.findMany({
-      where: { conversationId },
+      where: {
+        conversationId,
+        tenantId, // CRITICAL: Scope by tenant
+      },
       take: limit + 1,
       ...(cursor && {
         cursor: { id: cursor },
@@ -61,7 +72,7 @@ export class MessagesService {
     const nextCursor = hasNextPage ? items[items.length - 1].id : null;
 
     return {
-      items,
+      items: serialize(items),
       pagination: {
         nextCursor,
         hasNextPage,
@@ -70,11 +81,14 @@ export class MessagesService {
   }
 
   async createMessage(params: CreateMessageParams) {
-    const { conversationId, contentText, contentType = ContentType.TEXT, mediaUrl, userId, userRole } = params;
+    const { conversationId, contentText, contentType = ContentType.TEXT, mediaUrl, userId, userRole, tenantId } = params;
 
-    // Check conversation access
-    const conversation = await prisma.conversation.findUnique({
-      where: { id: conversationId },
+    // Check conversation access with tenant scope
+    const conversation = await prisma.conversation.findFirst({
+      where: {
+        id: conversationId,
+        tenantId, // CRITICAL: Scope by tenant
+      },
     });
 
     if (!conversation) {
@@ -88,6 +102,7 @@ export class MessagesService {
 
     const message = await prisma.message.create({
       data: {
+        tenantId, // CRITICAL: Add tenant ID
         conversationId,
         senderType: SenderType.AGENT,
         senderUserId: userId,
@@ -116,7 +131,21 @@ export class MessagesService {
       },
     });
 
-    return message;
+    // NEW: Send via WhatsApp if conversation came from WhatsApp
+    try {
+      await whatsAppService.sendMessage(
+        tenantId,
+        conversationId,
+        contentText,
+        userId
+      );
+      logger.info({ conversationId, tenantId }, 'WhatsApp message sent successfully');
+    } catch (error) {
+      logger.warn({ error, conversationId, tenantId }, 'Failed to send WhatsApp message');
+      // Don't fail the whole request if WhatsApp send fails
+    }
+
+    return serialize(message);
   }
 }
 
