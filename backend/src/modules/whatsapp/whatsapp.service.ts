@@ -211,8 +211,8 @@ export class WhatsAppService {
     // Parse incoming message
     const message = provider.parseIncomingMessage(payload);
     if (!message) {
-      logger.warn({ providerAccountId }, 'Could not parse incoming message');
-      return null;
+      // This is normal for status updates, don't log as warning
+      return { success: true, type: 'status_update_or_non_text' };
     }
 
     logger.info({

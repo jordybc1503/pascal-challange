@@ -94,6 +94,12 @@ export class MetaWhatsAppProvider implements IWhatsAppProvider {
       const change = entry.changes?.[0];
       if (!change || change.field !== 'messages') return null;
 
+      // Check if this is a status update (not an incoming message)
+      if (change.value.statuses && !change.value.messages) {
+        logger.info('📬 Status update received (not an incoming message), ignoring');
+        return null;
+      }
+
       const message = change.value.messages?.[0];
       if (!message) return null;
 
