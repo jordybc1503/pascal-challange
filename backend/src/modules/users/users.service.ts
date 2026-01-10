@@ -8,6 +8,7 @@ export class UsersService {
         id: true,
         email: true,
         role: true,
+        tenantId: true,
         createdAt: true,
       },
       orderBy: {
@@ -19,6 +20,7 @@ export class UsersService {
       id: user.id,
       email: user.email,
       role: user.role,
+      tenantId: user.tenantId,
       createdAt: user.createdAt.toISOString(),
     }));
   }

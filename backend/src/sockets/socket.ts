@@ -54,6 +54,10 @@ export const initializeSocket = (httpServer: HTTPServer): Server => {
 
   io.on('connection', (socket: AuthenticatedSocket) => {
     const tenantId = socket.data.tenantId;
+
+    // Automatically join tenant room for broadcast messages
+    socket.join(`tenant:${tenantId}`);
+
     logger.info({
       userId: socket.user?.userId,
       tenantId,

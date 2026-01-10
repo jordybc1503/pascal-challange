@@ -167,6 +167,17 @@ export const WhatsAppConfigSchema = z.object({
   phoneNumber: z.string().min(1, 'Phone number is required'),
   providerAccountId: z.string().min(1, 'Provider account ID is required'),
   accessToken: z.string().min(1, 'Access token is required'),
+  webhookVerifyToken: z.string().min(1, 'Webhook verify token is required'),
+  secret: z.string().optional(),
+});
+
+// For editing, access token is optional
+export const WhatsAppConfigEditSchema = z.object({
+  provider: z.enum(['META', 'TWILIO']),
+  displayName: z.string().min(1, 'Display name is required'),
+  phoneNumber: z.string().min(1, 'Phone number is required'),
+  providerAccountId: z.string().min(1, 'Provider account ID is required'),
+  accessToken: z.string().optional(),
   webhookVerifyToken: z.string().optional(),
   secret: z.string().optional(),
 });

@@ -1,7 +1,7 @@
 'use client';
 
 import { create } from 'zustand';
-import { authApi } from '@/lib/api';
+import { authApi, setAuthToken } from '@/lib/api';
 import { socketClient } from '@/lib/socket';
 import type { User, Tenant, LoginData } from '@/lib/schemas';
 
@@ -9,16 +9,18 @@ interface AuthState {
   user: User | null;
   tenant: Tenant | null;
   isLoading: boolean;
+  isInitialized: boolean;
   error: string | null;
   login: (data: LoginData) => Promise<void>;
   logout: () => void;
   initialize: () => Promise<void>;
 }
 
-export const useAuth = create<AuthState>((set) => ({
+export const useAuth = create<AuthState>((set, get) => ({
   user: null,
   tenant: null,
-  isLoading: false,
+  isLoading: true,
+  isInitialized: false,
   error: null,
 
   login: async (data: LoginData) => {
@@ -41,16 +43,23 @@ export const useAuth = create<AuthState>((set) => ({
   },
 
   initialize: async () => {
+    // Prevent multiple initializations
+    if (get().isInitialized) {
+      return;
+    }
+
     set({ isLoading: true });
     try {
       const user = await authApi.me();
       // Load tenant from localStorage
       const tenantData = typeof window !== 'undefined' ? localStorage.getItem('tenant') : null;
       const tenant = tenantData ? JSON.parse(tenantData) : null;
-      set({ user, tenant, isLoading: false });
+      set({ user, tenant, isLoading: false, isInitialized: true });
       socketClient.connect();
-    } catch {
-      set({ user: null, tenant: null, isLoading: false });
+    } catch (error) {
+      // If auth fails, clean up localStorage
+      authApi.logout();
+      set({ user: null, tenant: null, isLoading: false, isInitialized: true });
     }
   },
 }));

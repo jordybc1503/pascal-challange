@@ -21,25 +21,15 @@ export const useMessages = (conversationId: string | null) => {
 };
 
 export const useSendMessage = (conversationId: string | null) => {
-  const queryClient = useQueryClient();
+  const { addMessage } = useAddMessageToCache();
 
   return useMutation({
     mutationFn: (data: SendMessageData) => messagesApi.send(conversationId!, data),
     onSuccess: (newMessage) => {
-      queryClient.setQueryData<{
-        pages: Array<{ items: Message[]; pagination: { nextCursor: string | null; hasNextPage: boolean } }>;
-        pageParams: (string | undefined)[];
-      }>(['messages', conversationId], (old) => {
-        if (!old) return old;
-        return {
-          ...old,
-          pages: old.pages.map((page, index) =>
-            index === 0
-              ? { ...page, items: [newMessage, ...page.items] }
-              : page
-          ),
-        };
-      });
+      // Use addMessage which has duplicate protection
+      if (conversationId) {
+        addMessage(conversationId, newMessage);
+      }
     },
   });
 };

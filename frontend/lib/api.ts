@@ -74,6 +74,14 @@ async function fetchApi<T>(
   const data = await response.json();
 
   if (!response.ok) {
+    // If unauthorized, clear the token
+    if (response.status === 401) {
+      setAuthToken(null);
+      if (typeof window !== 'undefined') {
+        localStorage.removeItem('tenant');
+      }
+    }
+
     const errorData = ApiErrorResponseSchema.safeParse(data);
     if (errorData.success) {
       throw new ApiError(
@@ -260,6 +268,18 @@ export const whatsAppApi = {
       method: 'POST',
       body: JSON.stringify(config),
     }, (data) => ApiResponseSchema(WhatsAppConfigResponseSchema).parse(data).data);
+  },
+
+  toggleStatus: async (id: string): Promise<WhatsAppConfigResponse> => {
+    return fetchApi(`/whatsapp/config/${id}/toggle`, {
+      method: 'PATCH',
+    }, (data) => ApiResponseSchema(WhatsAppConfigResponseSchema).parse(data).data);
+  },
+
+  deleteConfig: async (id: string): Promise<void> => {
+    return fetchApi(`/whatsapp/config/${id}`, {
+      method: 'DELETE',
+    });
   },
 };
 

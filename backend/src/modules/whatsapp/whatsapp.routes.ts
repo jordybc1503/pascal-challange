@@ -118,6 +118,84 @@ router.get(
 
 /**
  * @openapi
+ * /api/v1/whatsapp/config/{id}:
+ *   get:
+ *     tags:
+ *       - WhatsApp
+ *     summary: Get specific WhatsApp channel
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Channel details
+ */
+router.get(
+  '/config/:id',
+  authenticate,
+  requireTenant,
+  whatsAppController.getChannelById.bind(whatsAppController)
+);
+
+/**
+ * @openapi
+ * /api/v1/whatsapp/config/{id}/toggle:
+ *   patch:
+ *     tags:
+ *       - WhatsApp
+ *     summary: Toggle WhatsApp channel active status
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Channel status toggled
+ */
+router.patch(
+  '/config/:id/toggle',
+  authenticate,
+  requireTenant,
+  whatsAppController.toggleChannelStatus.bind(whatsAppController)
+);
+
+/**
+ * @openapi
+ * /api/v1/whatsapp/config/{id}:
+ *   delete:
+ *     tags:
+ *       - WhatsApp
+ *     summary: Delete WhatsApp channel
+ *     security:
+ *       - bearerAuth: []
+ *     parameters:
+ *       - in: path
+ *         name: id
+ *         required: true
+ *         schema:
+ *           type: string
+ *     responses:
+ *       200:
+ *         description: Channel deleted
+ */
+router.delete(
+  '/config/:id',
+  authenticate,
+  requireTenant,
+  whatsAppController.deleteChannel.bind(whatsAppController)
+);
+
+/**
+ * @openapi
  * /api/v1/whatsapp/webhook/{providerAccountId}:
  *   get:
  *     tags:

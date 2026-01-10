@@ -57,12 +57,23 @@ export class MetaWhatsAppProvider implements IWhatsAppProvider {
     const token = params['hub.verify_token'];
     const challenge = params['hub.challenge'];
 
+    logger.info({
+      mode,
+      tokenReceived: token,
+      tokenExpected: this.webhookVerifyToken,
+      tokenMatch: token === this.webhookVerifyToken,
+    }, 'Webhook verification attempt');
+
     if (mode === 'subscribe' && token === this.webhookVerifyToken) {
       logger.info('Meta webhook verified successfully');
       return { isValid: true, challenge };
     }
 
-    logger.warn('Meta webhook verification failed');
+    logger.warn({
+      mode,
+      tokenReceived: token,
+      tokenExpected: this.webhookVerifyToken,
+    }, 'Meta webhook verification failed');
     return { isValid: false };
   }
 
@@ -106,41 +117,66 @@ export class MetaWhatsAppProvider implements IWhatsAppProvider {
 
   /**
    * Send message via Meta Cloud API
-   * TODO: Implement actual API call to Meta
    */
   async sendMessage(params: SendMessageParams): Promise<SendMessageResponse> {
     try {
-      // TODO: Replace with actual Meta API call
-      // const response = await fetch(`https://graph.facebook.com/v18.0/${this.phoneNumberId}/messages`, {
-      //   method: 'POST',
-      //   headers: {
-      //     'Authorization': `Bearer ${this.accessToken}`,
-      //     'Content-Type': 'application/json',
-      //   },
-      //   body: JSON.stringify({
-      //     messaging_product: 'whatsapp',
-      //     to: params.to,
-      //     type: 'text',
-      //     text: { body: params.text },
-      //   }),
-      // });
-
       logger.info(
         {
           to: params.to,
           provider: 'meta',
           phoneNumberId: this.phoneNumberId,
         },
-        'Sending WhatsApp message (STUB - implement API call)'
+        'Sending WhatsApp message via Meta API'
       );
 
-      // STUB: Return fake success
+      const response = await fetch(
+        `https://graph.facebook.com/v18.0/${this.phoneNumberId}/messages`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${this.accessToken}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            messaging_product: 'whatsapp',
+            to: params.to,
+            type: 'text',
+            text: { body: params.text },
+          }),
+        }
+      );
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        logger.error(
+          { status: response.status, error: errorData },
+          'Meta API returned error'
+        );
+        throw new Error(`Meta API error: ${JSON.stringify(errorData)}`);
+      }
+
+      const data = await response.json();
+      logger.info({ messageId: data.messages?.[0]?.id }, 'Meta message sent successfully');
+
       return {
-        messageId: `wamid.stub_${Date.now()}`,
+        messageId: data.messages?.[0]?.id || `wamid.${Date.now()}`,
         status: 'sent',
       };
     } catch (error) {
-      logger.error({ error, params }, 'Failed to send Meta WhatsApp message');
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+      const errorStack = error instanceof Error ? error.stack : undefined;
+
+      logger.error({
+        error: {
+          message: errorMessage,
+          stack: errorStack,
+          type: error?.constructor?.name,
+        },
+        params,
+        accessTokenPresent: !!this.accessToken,
+        accessTokenLength: this.accessToken?.length || 0,
+      }, 'Failed to send Meta WhatsApp message');
+
       return {
         messageId: '',
         status: 'failed',

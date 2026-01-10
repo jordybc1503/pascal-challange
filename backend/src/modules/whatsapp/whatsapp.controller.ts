@@ -73,6 +73,57 @@ export class WhatsAppController {
       next(error);
     }
   }
+
+  /**
+   * Get a specific WhatsApp channel by ID (TENANT_ADMIN only)
+   */
+  async getChannelById(req: TenantRequest, res: Response, next: NextFunction) {
+    try {
+      if (req.user?.role !== UserRole.TENANT_ADMIN) {
+        throw new ForbiddenError('Only tenant admins can view WhatsApp configuration');
+      }
+
+      const { id } = req.params;
+      const channel = await whatsAppService.getChannelById(id, req.tenantId!);
+      sendSuccess(res, channel);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Toggle WhatsApp channel active status (TENANT_ADMIN only)
+   */
+  async toggleChannelStatus(req: TenantRequest, res: Response, next: NextFunction) {
+    try {
+      if (req.user?.role !== UserRole.TENANT_ADMIN) {
+        throw new ForbiddenError('Only tenant admins can manage WhatsApp configuration');
+      }
+
+      const { id } = req.params;
+      const result = await whatsAppService.toggleChannelStatus(id, req.tenantId!);
+      sendSuccess(res, result);
+    } catch (error) {
+      next(error);
+    }
+  }
+
+  /**
+   * Delete WhatsApp channel (TENANT_ADMIN only)
+   */
+  async deleteChannel(req: TenantRequest, res: Response, next: NextFunction) {
+    try {
+      if (req.user?.role !== UserRole.TENANT_ADMIN) {
+        throw new ForbiddenError('Only tenant admins can manage WhatsApp configuration');
+      }
+
+      const { id } = req.params;
+      await whatsAppService.deleteChannel(id, req.tenantId!);
+      sendSuccess(res, { message: 'Channel deleted successfully' });
+    } catch (error) {
+      next(error);
+    }
+  }
 }
 
 export const whatsAppController = new WhatsAppController();

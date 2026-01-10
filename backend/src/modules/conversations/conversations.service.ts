@@ -65,6 +65,9 @@ export class ConversationsService {
             name: true,
             email: true,
             phone: true,
+            projectInterest: true,
+            metadata: true,
+            createdAt: true,
           },
         },
         assignedAgent: {

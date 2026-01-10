@@ -20,6 +20,9 @@ import usersRoutes from './modules/users/users.routes.js';
 export const createApp = (): Application => {
   const app = express();
 
+  // Trust proxy - needed for ngrok and other reverse proxies
+  app.set('trust proxy', 1);
+
   // Security middleware
   app.use(helmet());
 

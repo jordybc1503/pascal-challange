@@ -31,6 +31,32 @@ export default function WhatsAppIndexPage() {
     }
   };
 
+  const handleToggleStatus = async (id: string) => {
+    try {
+      const updated = await whatsAppApi.toggleStatus(id);
+      setConfigs(configs.map(c => c.id === id ? updated : c));
+      toast.success(`Configuration ${updated.isActive ? 'activated' : 'deactivated'}`);
+    } catch (error) {
+      console.error('Failed to toggle status:', error);
+      toast.error('Failed to update status');
+    }
+  };
+
+  const handleDelete = async (id: string, displayName: string) => {
+    if (!confirm(`Are you sure you want to delete "${displayName}"? This action cannot be undone.`)) {
+      return;
+    }
+
+    try {
+      await whatsAppApi.deleteConfig(id);
+      setConfigs(configs.filter(c => c.id !== id));
+      toast.success('Configuration deleted successfully');
+    } catch (error) {
+      console.error('Failed to delete config:', error);
+      toast.error('Failed to delete configuration');
+    }
+  };
+
   if (user?.role !== 'TENANT_ADMIN') {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
@@ -136,12 +162,14 @@ export default function WhatsAppIndexPage() {
                           <Settings className="w-5 h-5" />
                         </Link>
                         <button
+                          onClick={() => handleToggleStatus(config.id)}
                           className="p-2 text-gray-600 hover:bg-gray-50 rounded-lg transition-colors"
                           title="Toggle active status"
                         >
                           <Power className="w-5 h-5" />
                         </button>
                         <button
+                          onClick={() => handleDelete(config.id, config.displayName)}
                           className="p-2 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
                           title="Delete configuration"
                         >

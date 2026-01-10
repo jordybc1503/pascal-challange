@@ -1,15 +1,34 @@
 'use client';
 
-import { useEffect } from 'react';
+import { useEffect, useRef } from 'react';
 import { useAuth } from '@/hooks/useAuth';
 import { useRouter } from 'next/navigation';
+import { socketClient } from '@/lib/socket';
 
 export function AuthInitializer({ children }: { children: React.ReactNode }) {
-  const { initialize } = useAuth();
+  const initialize = useAuth((state) => state.initialize);
+  const user = useAuth((state) => state.user);
+  const hasInitialized = useRef(false);
 
   useEffect(() => {
-    initialize();
+    if (!hasInitialized.current) {
+      hasInitialized.current = true;
+      initialize();
+    }
   }, [initialize]);
+
+  // Connect socket when user is authenticated
+  useEffect(() => {
+    if (user) {
+      console.log('🔌 Connecting socket for user:', user.email);
+      socketClient.connect();
+
+      return () => {
+        console.log('🔌 Disconnecting socket');
+        socketClient.disconnect();
+      };
+    }
+  }, [user]);
 
   return <>{children}</>;
 }

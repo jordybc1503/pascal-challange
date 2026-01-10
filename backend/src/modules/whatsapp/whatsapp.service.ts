@@ -4,10 +4,11 @@ import { WhatsAppProvider, MessageStatus, SenderType } from '@prisma/client';
 import { encrypt, decrypt } from '../../utils/encryption.js';
 import { MetaWhatsAppProvider } from './providers/meta.provider.js';
 import { TwilioWhatsAppProvider } from './providers/twilio.provider.js';
-import { IWhatsAppProvider } from './providers/provider.interface.js';
+import { IWhatsAppProvider } from './provider.interface.js';
 import { logger } from '../../utils/logger.js';
 import { serialize } from '../../utils/serializer.js';
 import { queueJob } from '../../jobs/producer.js';
+import { getIO } from '../../sockets/socket.js';
 
 interface CreateConfigParams {
   tenantId: string;
@@ -27,9 +28,14 @@ export class WhatsAppService {
   async createOrUpdateConfig(params: CreateConfigParams) {
     const { tenantId, provider, displayName, phoneNumber, providerAccountId, accessToken, webhookVerifyToken, secret } = params;
 
-    // Encrypt sensitive data
-    const encryptedAccessToken = encrypt(accessToken);
-    const encryptedSecret = secret ? encrypt(secret) : null;
+    logger.info('Creating/Updating WhatsApp config', {
+      tenantId,
+      provider,
+      providerAccountId,
+      webhookVerifyToken: webhookVerifyToken || '(empty)',
+      hasAccessToken: !!accessToken,
+      hasSecret: !!secret,
+    });
 
     // Check if channel with this providerAccountId exists for this tenant
     const existingChannel = await prisma.whatsAppChannel.findUnique({
@@ -38,6 +44,9 @@ export class WhatsAppService {
           tenantId,
           providerAccountId,
         },
+      },
+      include: {
+        credentials: true,
       },
     });
 
@@ -53,27 +62,42 @@ export class WhatsAppService {
           },
         });
 
-        await tx.whatsAppCredential.upsert({
-          where: { channelId: channel.id },
-          update: {
-            encryptedAccessToken,
-            encryptedSecret,
-            webhookVerifyToken,
-          },
-          create: {
-            tenantId,
-            channelId: channel.id,
-            encryptedAccessToken,
-            encryptedSecret,
-            webhookVerifyToken,
-          },
-        });
+        // Only update tokens if provided, otherwise keep existing ones
+        const updateData: any = {};
+        if (accessToken) {
+          updateData.encryptedAccessToken = encrypt(accessToken);
+        }
+        if (secret) {
+          updateData.encryptedSecret = encrypt(secret);
+        }
+        if (webhookVerifyToken !== undefined) {
+          updateData.webhookVerifyToken = webhookVerifyToken;
+        }
+
+        // If no credential updates provided, use existing values
+        const hasUpdates = Object.keys(updateData).length > 0;
+
+        if (hasUpdates) {
+          await tx.whatsAppCredential.update({
+            where: { channelId: channel.id },
+            data: updateData,
+          });
+        }
 
         return channel;
       });
 
       return serialize(updated);
     }
+
+    // For new channels, accessToken is required
+    if (!accessToken) {
+      throw new BadRequestError('Access token is required for new configurations');
+    }
+
+    // Encrypt sensitive data
+    const encryptedAccessToken = encrypt(accessToken);
+    const encryptedSecret = secret ? encrypt(secret) : null;
 
     // Create new channel with credentials
     const result = await prisma.$transaction(async (tx) => {
@@ -128,6 +152,12 @@ export class WhatsAppService {
    * Handle incoming WhatsApp webhook
    */
   async handleIncomingWebhook(providerAccountId: string, payload: unknown, queryParams: Record<string, string>) {
+    logger.info('🔍 handleIncomingWebhook called', {
+      providerAccountId,
+      hasQueryParams: Object.keys(queryParams).length > 0,
+      queryParams,
+    });
+
     // Find channel by providerAccountId
     const channel = await prisma.whatsAppChannel.findFirst({
       where: { providerAccountId },
@@ -135,6 +165,16 @@ export class WhatsAppService {
         credentials: true,
         tenant: true,
       },
+    });
+
+    logger.info('📊 Database query result', {
+      channelFound: !!channel,
+      channelId: channel?.id,
+      hasCredentials: !!channel?.credentials,
+      credentialsId: channel?.credentials?.id,
+      webhookVerifyToken: channel?.credentials?.webhookVerifyToken,
+      webhookVerifyTokenLength: channel?.credentials?.webhookVerifyToken?.length || 0,
+      webhookVerifyTokenType: typeof channel?.credentials?.webhookVerifyToken,
     });
 
     if (!channel) {
@@ -145,14 +185,28 @@ export class WhatsAppService {
       throw new BadRequestError('Channel credentials not configured');
     }
 
-    // Create provider instance
-    const provider = this.getProviderInstance(channel, channel.credentials);
-
     // Check if this is a verification request (GET)
     if (Object.keys(queryParams).length > 0) {
+      logger.info('✅ This is a webhook verification request', {
+        mode: queryParams['hub.mode'],
+        challenge: queryParams['hub.challenge'],
+        tokenReceived: queryParams['hub.verify_token'],
+        tokenStored: channel.credentials.webhookVerifyToken,
+        credentialsObject: JSON.stringify(channel.credentials),
+      });
+
+      const provider = this.getProviderInstanceForVerification(channel, channel.credentials);
       const verification = provider.verifyWebhook(queryParams);
       return verification;
     }
+
+    // For incoming messages, we need the access token
+    if (!channel.credentials.encryptedAccessToken) {
+      throw new BadRequestError('Channel access token not configured. Please configure the access token in the WhatsApp settings.');
+    }
+
+    // Create provider instance
+    const provider = this.getProviderInstance(channel, channel.credentials);
 
     // Parse incoming message
     const message = provider.parseIncomingMessage(payload);
@@ -214,9 +268,19 @@ export class WhatsAppService {
         conversationId: conversation.id,
         senderType: SenderType.LEAD,
         contentText: message.text,
+        contentType: 'TEXT',
         externalProvider: channel.provider,
         externalMessageId: message.messageId,
         status: MessageStatus.DELIVERED,
+      },
+      include: {
+        senderUser: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
       },
     });
 
@@ -235,7 +299,17 @@ export class WhatsAppService {
       conversationId: conversation.id,
     });
 
-    // TODO: Emit socket event message:new
+    // Emit socket event for new message
+    const io = getIO();
+    io.to(`tenant:${channel.tenantId}`).emit('message:new', {
+      conversationId: conversation.id,
+      message: serialize(newMessage),
+    });
+
+    logger.info(
+      { conversationId: conversation.id, messageId: newMessage.id },
+      'Socket event emitted: message:new'
+    );
 
     return {
       conversationId: conversation.id,
@@ -277,8 +351,8 @@ export class WhatsAppService {
       },
     });
 
-    if (!channel || !channel.credentials) {
-      throw new BadRequestError('No active WhatsApp channel configured');
+    if (!channel || !channel.credentials || !channel.credentials.encryptedAccessToken) {
+      throw new BadRequestError('No active WhatsApp channel configured with valid credentials');
     }
 
     // Create provider instance
@@ -290,6 +364,11 @@ export class WhatsAppService {
       text,
     });
 
+    // If sending failed, throw error instead of creating a failed message
+    if (result.status === 'failed') {
+      throw new BadRequestError('Failed to send WhatsApp message. Please check your credentials.');
+    }
+
     // Create message record
     const message = await prisma.message.create({
       data: {
@@ -298,9 +377,19 @@ export class WhatsAppService {
         senderType: SenderType.AGENT,
         senderUserId: userId,
         contentText: text,
+        contentType: 'TEXT',
         externalProvider: channel.provider,
         externalMessageId: result.messageId,
         status: result.status === 'sent' ? MessageStatus.SENT : MessageStatus.FAILED,
+      },
+      include: {
+        senderUser: {
+          select: {
+            id: true,
+            email: true,
+            role: true,
+          },
+        },
       },
     });
 
@@ -314,7 +403,17 @@ export class WhatsAppService {
       },
     });
 
-    // TODO: Emit socket event
+    // Emit socket event for sent message
+    const io = getIO();
+    io.to(`tenant:${tenantId}`).emit('message:new', {
+      conversationId,
+      message: serialize(message),
+    });
+
+    logger.info(
+      { conversationId, messageId: message.id },
+      'Socket event emitted: message:sent'
+    );
 
     return serialize(message);
   }
@@ -326,8 +425,41 @@ export class WhatsAppService {
     channel: { provider: WhatsAppProvider; providerAccountId: string; phoneNumber: string },
     credentials: { encryptedAccessToken: string; encryptedSecret: string | null; webhookVerifyToken: string | null }
   ): IWhatsAppProvider {
-    const accessToken = decrypt(credentials.encryptedAccessToken);
-    const secret = credentials.encryptedSecret ? decrypt(credentials.encryptedSecret) : '';
+    logger.info('🔐 Token from database:', {
+      encryptedToken: credentials.encryptedAccessToken,
+      encryptedTokenLength: credentials.encryptedAccessToken.length,
+      hasColons: credentials.encryptedAccessToken.includes(':'),
+      colonCount: credentials.encryptedAccessToken.split(':').length - 1,
+    });
+
+    // Check if token is actually encrypted (encrypted tokens have format: salt:iv:authTag:data)
+    const isEncrypted = credentials.encryptedAccessToken.includes(':') &&
+                       credentials.encryptedAccessToken.split(':').length === 4;
+
+    let accessToken: string;
+    if (isEncrypted) {
+      try {
+        accessToken = decrypt(credentials.encryptedAccessToken).trim();
+        logger.info('✅ Successfully decrypted access token');
+      } catch (error) {
+        logger.error('❌ Failed to decrypt access token, using as plain text', { error });
+        accessToken = credentials.encryptedAccessToken.trim();
+      }
+    } else {
+      // Token is stored in plain text
+      logger.info('📝 Using plain text access token (not encrypted)');
+      accessToken = credentials.encryptedAccessToken.trim();
+    }
+
+    const secret = credentials.encryptedSecret ? decrypt(credentials.encryptedSecret).trim() : '';
+
+    logger.info('🔑 ACCESS TOKEN TO USE:', {
+      accessToken: accessToken,
+      tokenLength: accessToken.length,
+      isEncrypted,
+      first10Chars: accessToken.substring(0, 10),
+      last10Chars: accessToken.substring(accessToken.length - 10),
+    });
 
     if (channel.provider === WhatsAppProvider.META) {
       return new MetaWhatsAppProvider(
@@ -344,6 +476,100 @@ export class WhatsAppService {
     }
 
     throw new BadRequestError(`Unsupported provider: ${channel.provider}`);
+  }
+
+  /**
+   * Get provider instance for webhook verification (doesn't need access token)
+   */
+  private getProviderInstanceForVerification(
+    channel: { provider: WhatsAppProvider; providerAccountId: string; phoneNumber: string },
+    credentials: { encryptedAccessToken: string | null; encryptedSecret: string | null; webhookVerifyToken: string | null }
+  ): IWhatsAppProvider {
+    if (channel.provider === WhatsAppProvider.META) {
+      return new MetaWhatsAppProvider(
+        '', // No access token needed for verification
+        channel.providerAccountId,
+        credentials.webhookVerifyToken || ''
+      );
+    } else if (channel.provider === WhatsAppProvider.TWILIO) {
+      const secret = credentials.encryptedSecret ? decrypt(credentials.encryptedSecret) : '';
+      return new TwilioWhatsAppProvider(
+        channel.providerAccountId,
+        secret,
+        channel.phoneNumber
+      );
+    }
+
+    throw new BadRequestError(`Unsupported provider: ${channel.provider}`);
+  }
+
+  /**
+   * Toggle WhatsApp channel active status
+   */
+  async toggleChannelStatus(channelId: string, tenantId: string) {
+    const channel = await prisma.whatsAppChannel.findFirst({
+      where: {
+        id: channelId,
+        tenantId,
+      },
+    });
+
+    if (!channel) {
+      throw new NotFoundError('WhatsApp channel not found');
+    }
+
+    const updated = await prisma.whatsAppChannel.update({
+      where: { id: channelId },
+      data: { isActive: !channel.isActive },
+    });
+
+    return serialize(updated);
+  }
+
+  /**
+   * Delete WhatsApp channel
+   */
+  async deleteChannel(channelId: string, tenantId: string) {
+    const channel = await prisma.whatsAppChannel.findFirst({
+      where: {
+        id: channelId,
+        tenantId,
+      },
+    });
+
+    if (!channel) {
+      throw new NotFoundError('WhatsApp channel not found');
+    }
+
+    // Delete credentials and channel in transaction
+    await prisma.$transaction(async (tx) => {
+      await tx.whatsAppCredential.deleteMany({
+        where: { channelId },
+      });
+      await tx.whatsAppChannel.delete({
+        where: { id: channelId },
+      });
+    });
+
+    return { success: true };
+  }
+
+  /**
+   * Get a specific channel by ID
+   */
+  async getChannelById(channelId: string, tenantId: string) {
+    const channel = await prisma.whatsAppChannel.findFirst({
+      where: {
+        id: channelId,
+        tenantId,
+      },
+    });
+
+    if (!channel) {
+      throw new NotFoundError('WhatsApp channel not found');
+    }
+
+    return serialize(channel);
   }
 }
 

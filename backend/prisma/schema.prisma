@@ -105,8 +105,8 @@ model WhatsAppChannel {
   updatedAt         DateTime         @updatedAt @map("updated_at")
 
   // Relations
-  tenant      Tenant               @relation(fields: [tenantId], references: [id], onDelete: Cascade)
-  credentials WhatsAppCredential[]
+  tenant      Tenant              @relation(fields: [tenantId], references: [id], onDelete: Cascade)
+  credentials WhatsAppCredential?
 
   @@unique([tenantId, providerAccountId])
   @@index([tenantId])
