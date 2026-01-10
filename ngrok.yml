@@ -1,0 +1,7 @@
+version: 2
+authtoken: "35oFl8riambB1mjbRasuUVNKYcg_6aPgJA5gHsuQtEYuxZ1xm"
+tunnels:
+  backend:
+    proto: http
+    addr: 3000
+    domain: ergonomic-unsettledly-rich.ngrok-free.dev  # Backend usa el dominio fijo

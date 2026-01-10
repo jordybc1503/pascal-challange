@@ -51,7 +51,7 @@ router.get(
   '/',
   authenticate,
   requireTenant,
-  requireRole([UserRole.TENANT_ADMIN]),
+  requireRole(UserRole.TENANT_ADMIN),
   usersController.listUsers.bind(usersController)
 );
 

@@ -5,6 +5,7 @@ export const getConversationsSchema = z.object({
     priority: z.enum(['HIGH', 'MEDIUM', 'LOW']).optional(),
     tag: z.string().optional(),
     search: z.string().optional(),
+    unreplied: z.string().optional().transform((val) => val === 'true'),
     limit: z.string().optional().transform((val) => (val ? parseInt(val, 10) : 20)),
     cursor: z.string().optional(),
   }),

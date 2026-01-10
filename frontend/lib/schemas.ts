@@ -151,6 +151,26 @@ export const SocketTypingSchema = z.object({
   conversationId: z.string(),
 });
 
+
+// Send message schema
+export const SendMessageSchema = z.object({
+  contentText: z.string().min(1, 'Message cannot be empty'),
+  contentType: ContentType.optional(),
+  mediaUrl: z.string().url().nullable().optional(),
+});
+
+
+// WhatsApp Configuration schema
+export const WhatsAppConfigSchema = z.object({
+  provider: z.enum(['META', 'TWILIO']),
+  displayName: z.string().min(1, 'Display name is required'),
+  phoneNumber: z.string().min(1, 'Phone number is required'),
+  providerAccountId: z.string().min(1, 'Provider account ID is required'),
+  accessToken: z.string().min(1, 'Access token is required'),
+  webhookVerifyToken: z.string().optional(),
+  secret: z.string().optional(),
+});
+
 // Types
 export type UserRole = z.infer<typeof UserRole>;
 export type SenderType = z.infer<typeof SenderType>;
@@ -167,12 +187,32 @@ export type DashboardMetrics = z.infer<typeof DashboardMetricsSchema>;
 export type SocketMessageNew = z.infer<typeof SocketMessageNewSchema>;
 export type SocketAIUpdate = z.infer<typeof SocketAIUpdateSchema>;
 export type SocketTyping = z.infer<typeof SocketTypingSchema>;
+export type SendMessageData = z.infer<typeof SendMessageSchema>;
 
-// Send message schema
-export const SendMessageSchema = z.object({
-  contentText: z.string().min(1, 'Message cannot be empty'),
-  contentType: ContentType.optional(),
-  mediaUrl: z.string().url().nullable().optional(),
+// WhatsApp Configuration schema
+
+
+export type WhatsAppConfigFormData = z.infer<typeof WhatsAppConfigSchema>;
+
+// WhatsApp Configuration Response schema (without sensitive data)
+export const WhatsAppConfigResponseSchema = z.object({
+  id: z.string(),
+  provider: z.enum(['META', 'TWILIO']),
+  displayName: z.string(),
+  phoneNumber: z.string(),
+  providerAccountId: z.string(),
+  isActive: z.boolean(),
+  createdAt: z.string(),
 });
 
-export type SendMessageData = z.infer<typeof SendMessageSchema>;
+export type WhatsAppConfigResponse = z.infer<typeof WhatsAppConfigResponseSchema>;
+
+// Users List Response schema
+export const UsersListResponseSchema = z.array(UserSchema);
+
+export type UsersListResponse = z.infer<typeof UsersListResponseSchema>;
+
+// WhatsApp Config List Response schema
+export const WhatsAppConfigListResponseSchema = z.array(WhatsAppConfigResponseSchema);
+
+export type WhatsAppConfigListResponse = z.infer<typeof WhatsAppConfigListResponseSchema>;

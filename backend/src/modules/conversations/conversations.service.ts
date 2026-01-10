@@ -7,6 +7,7 @@ interface GetConversationsFilters {
   priority?: Priority;
   tag?: string;
   search?: string;
+  unreplied?: boolean;
   limit?: number;
   cursor?: string;
   userId: string;
@@ -16,7 +17,7 @@ interface GetConversationsFilters {
 
 export class ConversationsService {
   async getConversations(filters: GetConversationsFilters) {
-    const { priority, tag, search, limit = 20, cursor, userId, userRole, tenantId } = filters;
+    const { priority, tag, search, unreplied, limit = 20, cursor, userId, userRole, tenantId } = filters;
 
     const where: Prisma.ConversationWhereInput = {
       tenantId, // CRITICAL: Scope by tenant
@@ -35,6 +36,10 @@ export class ConversationsService {
       where.aiTags = {
         has: tag,
       };
+    }
+
+    if (unreplied) {
+      where.lastAgentReplyAt = null;
     }
 
     if (search) {

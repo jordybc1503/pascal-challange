@@ -103,3 +103,6 @@ export const createApp = (): Application => {
 
   return app;
 };
+
+// Export a singleton instance for testing
+export const app = createApp();

@@ -7,12 +7,13 @@ import { Priority } from '@prisma/client';
 export class ConversationsController {
   async getConversations(req: TenantRequest, res: Response, next: NextFunction) {
     try {
-      const { priority, tag, search, limit, cursor } = req.query;
+      const { priority, tag, search, unreplied, limit, cursor } = req.query;
 
       const result = await conversationsService.getConversations({
         priority: priority as Priority | undefined,
         tag: tag as string | undefined,
         search: search as string | undefined,
+        unreplied: unreplied === 'true',
         limit: limit ? parseInt(limit as string, 10) : undefined,
         cursor: cursor as string | undefined,
         userId: req.user!.userId,

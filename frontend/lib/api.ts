@@ -7,12 +7,17 @@ import {
   MessageSchema,
   DashboardMetricsSchema,
   PaginatedResponseSchema,
+  WhatsAppConfigResponseSchema,
+  WhatsAppConfigListResponseSchema,
+  UsersListResponseSchema,
   type AuthResponse,
   type User,
   type Conversation,
   type Message,
   type DashboardMetrics,
   type SendMessageData,
+  type WhatsAppConfigFormData,
+  type WhatsAppConfigResponse,
 } from './schemas';
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3000/api/v1';
@@ -201,6 +206,37 @@ export const dashboardApi = {
   getMetrics: async (): Promise<DashboardMetrics> => {
     return fetchApi('/dashboard/metrics', {}, (data) =>
       ApiResponseSchema(DashboardMetricsSchema).parse(data).data
+    );
+  },
+};
+
+// WhatsApp API
+export const whatsAppApi = {
+  listConfigs: async (): Promise<WhatsAppConfigResponse[]> => {
+    return fetchApi('/whatsapp/config', {}, (data) =>
+      ApiResponseSchema(WhatsAppConfigListResponseSchema).parse(data).data
+    );
+  },
+
+  getConfig: async (id: string): Promise<WhatsAppConfigResponse> => {
+    return fetchApi(`/whatsapp/config/${id}`, {}, (data) =>
+      ApiResponseSchema(WhatsAppConfigResponseSchema).parse(data).data
+    );
+  },
+
+  saveConfig: async (config: WhatsAppConfigFormData): Promise<WhatsAppConfigResponse> => {
+    return fetchApi('/whatsapp/config', {
+      method: 'POST',
+      body: JSON.stringify(config),
+    }, (data) => ApiResponseSchema(WhatsAppConfigResponseSchema).parse(data).data);
+  },
+};
+
+// Users API
+export const usersApi = {
+  list: async (): Promise<User[]> => {
+    return fetchApi('/users', {}, (data) =>
+      ApiResponseSchema(UsersListResponseSchema).parse(data).data
     );
   },
 };

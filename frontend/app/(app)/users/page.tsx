@@ -5,6 +5,7 @@ import { Users, UserPlus, Mail, Shield, User } from 'lucide-react';
 import Link from 'next/link';
 import { useAuth } from '@/hooks/useAuth';
 import { toast } from 'sonner';
+import { usersApi } from '@/lib/api';
 
 interface UserData {
   id: string;
@@ -26,19 +27,8 @@ export default function UsersListPage() {
 
   const fetchUsers = async () => {
     try {
-      const token = localStorage.getItem('token');
-      const response = await fetch('http://localhost:3000/api/v1/users', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch users');
-      }
-
-      const result = await response.json();
-      setUsers(result.data || []);
+      const result = await usersApi.list();
+      setUsers(result || []);
     } catch (error) {
       toast.error('Failed to load users');
       console.error(error);
