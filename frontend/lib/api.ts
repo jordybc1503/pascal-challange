@@ -134,21 +134,52 @@ export const conversationsApi = {
     unreplied?: boolean;
     cursor?: string;
     limit?: number;
-  }): Promise<{ items: Conversation[]; pagination: { nextCursor: string | null; hasNextPage: boolean } }> => {
+  }): Promise<{
+    items: Conversation[];
+    pagination: { nextCursor: string | null; hasNextPage: boolean };
+  }> => {
     const searchParams = new URLSearchParams();
-    if (params?.priority) searchParams.set('priority', params.priority);
-    if (params?.tag) searchParams.set('tag', params.tag);
-    if (params?.search) searchParams.set('search', params.search);
-    if (params?.unreplied) searchParams.set('unreplied', 'true');
-    if (params?.cursor) searchParams.set('cursor', params.cursor);
-    if (params?.limit) searchParams.set('limit', params.limit.toString());
+
+    if (params?.priority) searchParams.set("priority", params.priority);
+    if (params?.tag) searchParams.set("tag", params.tag);
+    if (params?.search) searchParams.set("search", params.search);
+
+    // IMPORTANT: allow false to be explicitly passed if your API supports it
+    if (typeof params?.unreplied === "boolean") {
+      searchParams.set("unreplied", String(params.unreplied));
+      // If backend expects only "true" when filtering, use:
+      // if (params.unreplied) searchParams.set("unreplied", "true");
+    }
+
+    if (params?.cursor) searchParams.set("cursor", params.cursor);
+
+    // allow 0 if needed
+    if (typeof params?.limit === "number") {
+      searchParams.set("limit", String(params.limit));
+    }
 
     const query = searchParams.toString();
-    const endpoint = query ? `/conversations?${query}` : '/conversations';
+    const endpoint = query ? `/conversations?${query}` : "/conversations";
 
-    return fetchApi(endpoint, {}, (data) =>
-      ApiResponseSchema(PaginatedResponseSchema(ConversationSchema)).parse(data).data
+    console.log("[conversationsApi.list] Endpoint:", endpoint);
+    console.log(
+      "[conversationsApi.list] Token:",
+      getAuthToken() ? "Present" : "Missing"
     );
+
+    try {
+      const result = await fetchApi(endpoint, {}, (data) =>
+        ApiResponseSchema(
+          PaginatedResponseSchema(ConversationSchema)
+        ).parse(data).data
+      );
+
+      console.log("[conversationsApi.list] Success:", result);
+      return result;
+    } catch (error) {
+      console.error("[conversationsApi.list] Error:", error);
+      throw error;
+    }
   },
 
   getById: async (id: string): Promise<Conversation> => {

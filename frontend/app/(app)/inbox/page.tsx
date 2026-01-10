@@ -33,7 +33,17 @@ export default function InboxPage() {
     fetchNextPage,
     hasNextPage,
     isFetchingNextPage,
+    error: conversationsError,
   } = useConversations({ search, priority, unreplied });
+
+  // Debug logs
+  useEffect(() => {
+    console.log('[InboxPage] User:', user);
+    console.log('[InboxPage] Conversations loading:', conversationsLoading);
+    console.log('[InboxPage] Conversations error:', conversationsError);
+    console.log('[InboxPage] Conversations data:', conversationsData);
+    console.log('[InboxPage] Conversations count:', conversations.length);
+  }, [user, conversationsLoading, conversationsError, conversationsData]);
 
   const conversations = conversationsData?.pages.flatMap((page) => page.items) ?? [];
   const selectedConversation = conversations.find((c) => c.id === selectedConversationId);
