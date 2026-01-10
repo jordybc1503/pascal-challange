@@ -67,6 +67,12 @@ export default function InboxPage() {
     conversationId: selectedConversationId,
     onMessageNew: useCallback(
       (data) => {
+        // Don't add the message if it's from the current user (already added by mutation)
+        if (data.message.senderUserId === user?.id) {
+          console.log('🚫 Ignoring socket message from self:', data.message.id);
+          return;
+        }
+
         if (data.conversationId === selectedConversationId) {
           addMessage(data.conversationId, data.message);
         }
@@ -78,7 +84,7 @@ export default function InboxPage() {
         }));
         toast.success('New message received');
       },
-      [selectedConversationId, addMessage, updateConversation]
+      [selectedConversationId, addMessage, updateConversation, user?.id]
     ),
     onAIUpdate: useCallback(
       (data) => {
