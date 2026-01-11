@@ -128,6 +128,9 @@ export class MessagesService {
         lastMessageAt: new Date(),
         lastMessageSenderType: SenderType.AGENT,
         lastAgentReplyAt: new Date(),
+        messagesSinceLastAI: { increment: 1 }, // Track messages for AI policy
+        // Auto-assign agent if conversation is unassigned
+        ...(conversation.assignedAgentId === null ? { assignedAgentId: userId } : {}),
       },
     });
 

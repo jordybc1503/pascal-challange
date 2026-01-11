@@ -16,9 +16,11 @@ class AIJobProducer {
       };
 
       await aiQueue.add(AI_ANALYZE_CONVERSATION, jobData, {
-        jobId: `analyze-${tenantId}-${conversationId}`, // Tenant-scoped jobId for deduplication
+        // TEMPORARY DEBUG: Force unique Job ID to debug execution
+        jobId: `analyze-${tenantId}-${conversationId}-${Date.now()}`,
         delay: config.ai.debounceMs, // Debounce delay
-        // If a job with the same jobId exists, it will be replaced
+        removeOnComplete: true, // Allow re-analysis immediately after completion
+        removeOnFail: true, // Allow retry after failure
       });
 
       logger.info({ conversationId, tenantId, jobId: `analyze-${tenantId}-${conversationId}` }, 'AI analysis job enqueued');

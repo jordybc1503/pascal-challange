@@ -212,7 +212,10 @@ export class AIService {
         if (attempt === maxRetries) throw error;
 
         const waitTime = delayMs * Math.pow(2, attempt - 1);
-        logger.warn(`AI call failed, retrying (${attempt}/${maxRetries}) in ${waitTime}ms`, {
+        logger.warn('⚠️ AI call failed, retrying...', {
+          attempt,
+          maxRetries,
+          waitTime,
           error: error instanceof Error ? error.message : String(error),
         });
 

@@ -2,7 +2,7 @@ import { Response, NextFunction } from 'express';
 import { messagesService } from './messages.service.js';
 import { sendSuccess } from '../../utils/response.js';
 import { TenantRequest } from '../../middlewares/tenant.js';
-import { queueJob, aiJobProducer } from '../../jobs/producer.js';
+import { aiJobProducer } from '../../jobs/producer.js';
 import { emitNewMessage } from '../../sockets/events.js';
 import { logger } from '../../utils/logger.js';
 import { ContentType } from '@prisma/client';
