@@ -7,7 +7,7 @@ import { TwilioWhatsAppProvider } from './providers/twilio.provider.js';
 import { IWhatsAppProvider } from './provider.interface.js';
 import { logger } from '../../utils/logger.js';
 import { serialize } from '../../utils/serializer.js';
-import { queueJob } from '../../jobs/producer.js';
+import { aiJobProducer } from '../../jobs/producer.js';
 import { getIO } from '../../sockets/socket.js';
 
 interface CreateConfigParams {
@@ -290,14 +290,13 @@ export class WhatsAppService {
       data: {
         lastMessageAt: new Date(),
         lastMessageSenderType: SenderType.LEAD,
+        messagesSinceLastAI: { increment: 1 }, // Track messages for AI policy
       },
     });
 
     // Enqueue AI analysis job
-    await queueJob('AI_ANALYZE_CONVERSATION', {
-      tenantId: channel.tenantId,
-      conversationId: conversation.id,
-    });
+    logger.info({ conversationId: conversation.id, tenantId: channel.tenantId }, '🔍 Debug: About to enqueue AI job from WhatsApp Webhook');
+    await aiJobProducer.enqueueConversationAnalysis(conversation.id, channel.tenantId);
 
     // Emit socket event for new message
     const io = getIO();
@@ -400,7 +399,14 @@ export class WhatsAppService {
         lastMessageAt: new Date(),
         lastMessageSenderType: SenderType.AGENT,
         lastAgentReplyAt: new Date(),
+        messagesSinceLastAI: { increment: 1 }, // Track messages for AI policy
       },
+    });
+
+    // Enqueue AI analysis job
+    await queueJob('AI_ANALYZE_CONVERSATION', {
+      tenantId,
+      conversationId,
     });
 
     // Emit socket event for sent message
@@ -434,7 +440,7 @@ export class WhatsAppService {
 
     // Check if token is actually encrypted (encrypted tokens have format: salt:iv:authTag:data)
     const isEncrypted = credentials.encryptedAccessToken.includes(':') &&
-                       credentials.encryptedAccessToken.split(':').length === 4;
+      credentials.encryptedAccessToken.split(':').length === 4;
 
     let accessToken: string;
     if (isEncrypted) {

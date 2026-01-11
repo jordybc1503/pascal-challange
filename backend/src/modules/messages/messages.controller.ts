@@ -2,8 +2,9 @@ import { Response, NextFunction } from 'express';
 import { messagesService } from './messages.service.js';
 import { sendSuccess } from '../../utils/response.js';
 import { TenantRequest } from '../../middlewares/tenant.js';
-import { queueJob } from '../../jobs/producer.js';
+import { queueJob, aiJobProducer } from '../../jobs/producer.js';
 import { emitNewMessage } from '../../sockets/events.js';
+import { logger } from '../../utils/logger.js';
 import { ContentType } from '@prisma/client';
 
 export class MessagesController {
@@ -45,11 +46,10 @@ export class MessagesController {
       // Emit socket event for new message (with tenant scope)
       emitNewMessage(conversationId, req.tenantId!, message);
 
+      logger.info({ conversationId, tenantId: req.tenantId }, '🔍 Debug: About to enqueue AI job from Controller');
+
       // Enqueue AI analysis job with tenantId
-      await queueJob('AI_ANALYZE_CONVERSATION', {
-        tenantId: req.tenantId!,
-        conversationId,
-      });
+      await aiJobProducer.enqueueConversationAnalysis(conversationId, req.tenantId!);
 
       sendSuccess(res, message, 201);
     } catch (error) {

@@ -21,7 +21,7 @@ class AIJobProducer {
         // If a job with the same jobId exists, it will be replaced
       });
 
-      logger.debug({ conversationId, tenantId }, 'AI analysis job enqueued');
+      logger.info({ conversationId, tenantId, jobId: `analyze-${tenantId}-${conversationId}` }, 'AI analysis job enqueued');
     } catch (error) {
       logger.error({ error, conversationId, tenantId }, 'Failed to enqueue AI analysis job');
       throw error;

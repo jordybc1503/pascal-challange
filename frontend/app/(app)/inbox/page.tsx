@@ -66,7 +66,7 @@ export default function InboxPage() {
   useSocketRoom({
     conversationId: selectedConversationId,
     onMessageNew: useCallback(
-      (data) => {
+      (data:any) => {
         // Don't add the message if it's from the current user (already added by mutation)
         if (data.message.senderUserId === user?.id) {
           console.log('🚫 Ignoring socket message from self:', data.message.id);
@@ -87,7 +87,7 @@ export default function InboxPage() {
       [selectedConversationId, addMessage, updateConversation, user?.id]
     ),
     onAIUpdate: useCallback(
-      (data) => {
+      (data:any) => {
         updateConversation(data.conversationId, (old) => ({
           ...old,
           aiSummary: data.aiData.summary ?? old.aiSummary,
@@ -100,7 +100,7 @@ export default function InboxPage() {
       [updateConversation]
     ),
     onTypingStart: useCallback(
-      (data) => {
+      (data:any) => {
         if (data.conversationId === selectedConversationId && data.userId !== user?.id) {
           setTypingUsers((prev) => new Set(prev).add(data.email));
         }
@@ -108,7 +108,7 @@ export default function InboxPage() {
       [selectedConversationId, user?.id]
     ),
     onTypingStop: useCallback(
-      (data) => {
+      (data:any) => {
         if (data.conversationId === selectedConversationId) {
           setTypingUsers((prev) => {
             const next = new Set(prev);

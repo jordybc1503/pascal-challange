@@ -25,6 +25,10 @@ const startServer = async () => {
     // Initialize Socket.IO
     initializeSocket(httpServer);
 
+    // Initialize Redis Subscriber for inter-process communication
+    const { initializeSubscriber } = await import('./jobs/subscriber.js');
+    initializeSubscriber();
+
     // Start server
     httpServer.listen(config.port, () => {
       logger.info({

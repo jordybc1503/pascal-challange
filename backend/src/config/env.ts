@@ -28,10 +28,10 @@ const envSchema = z.object({
   RATE_LIMIT_WINDOW_MS: z.string().default('900000'),
   RATE_LIMIT_MAX_REQUESTS: z.string().default('100'),
 
-  AI_PROVIDER: z.string().default('openai'),
-  AI_API_KEY: z.string().optional(),
-  AI_MODEL: z.string().default('gpt-4'),
-  AI_DEBOUNCE_MS: z.string().default('10000'),
+  AI_PROVIDER: z.enum(['gemini', 'openai', 'claude']).default('gemini'),
+  AI_API_KEY: z.string(),
+  AI_MODEL: z.enum(['gemini-1.5-flash', 'gemini-2.0-flash', 'gemini-pro', 'gpt-3.5-turbo', 'gpt-4o', 'gpt-5-nano-2025-08-07']).default('gemini-2.0-flash'),
+  AI_DEBOUNCE_MS: z.coerce.number().default(10000),
 
   BULLMQ_QUEUE_NAME: z.string().default('ai-analysis'),
   BULLMQ_CONCURRENCY: z.string().default('5'),

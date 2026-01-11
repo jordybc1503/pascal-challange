@@ -1,17 +1,17 @@
 import { Worker, Job } from 'bullmq';
 import { config } from '../config/env.js';
 import { redisConnection } from './redis.js';
-import { prisma } from '../db/client.js';
 import { logger } from '../utils/logger.js';
 import { AI_ANALYZE_CONVERSATION, AIAnalyzeConversationJobData } from './queue.js';
-import { analyzeConversation } from '../modules/ai/analyzer.js';
-import { emitConversationAIUpdate } from '../sockets/events.js';
-import { Priority } from '@prisma/client';
+import { aiService } from '../modules/ai/ai.service.js';
+import { prisma } from '../db/client.js';
 
 export const createAIWorker = () => {
   const worker = new Worker(
     config.bullmq.queueName,
     async (job: Job<AIAnalyzeConversationJobData>) => {
+      logger.info({ jobName: job.name, jobId: job.id }, '📥 Worker received a job (Raw Debug)');
+
       if (job.name === AI_ANALYZE_CONVERSATION) {
         return await processConversationAnalysis(job);
       }
@@ -44,90 +44,57 @@ export const createAIWorker = () => {
 async function processConversationAnalysis(job: Job<AIAnalyzeConversationJobData>) {
   const { conversationId, tenantId } = job.data;
 
-  logger.info({ conversationId, tenantId, jobId: job.id }, 'Processing conversation analysis');
+  logger.info({ conversationId, tenantId, jobId: job.id }, 'Processing AI conversation analysis');
 
   try {
-    // Fetch the conversation to ensure it exists (tenant-scoped)
-    const conversation = await prisma.conversation.findUnique({
-      where: {
-        id: conversationId,
-        tenantId, // CRITICAL: Ensure tenant isolation
+    // Check if analysis should run based on update policy
+    const shouldAnalyze = await aiService.shouldAnalyzeConversation(conversationId, tenantId);
+
+    if (!shouldAnalyze) {
+      logger.info('⏭️ Skipping AI analysis (policy not met)', { conversationId });
+      return { skipped: true, reason: 'policy_not_met' };
+    }
+
+    // Run AI analysis
+    await aiService.analyzeConversation(conversationId, tenantId);
+
+    // Get updated conversation data to emit
+    const updatedConversation = await prisma.conversation.findUnique({
+      where: { id: conversationId },
+      select: {
+        aiSummary: true,
+        aiPriority: true,
+        aiTags: true,
+        aiUpdatedAt: true,
+        aiMetadata: true,
       },
     });
 
-    if (!conversation) {
-      logger.warn({ conversationId, tenantId }, 'Conversation not found, skipping analysis');
-      return { skipped: true, reason: 'conversation_not_found' };
-    }
-
-    // Fetch the last N messages (e.g., 30) - tenant-scoped via conversation
-    const messages = await prisma.message.findMany({
-      where: {
+    // Emit event via Redis Pub/Sub (handled by main server)
+    const { publishEvent } = await import('./publisher.js');
+    await publishEvent('socket:emit', {
+      room: `tenant:${tenantId}`,
+      event: 'conversation:ai:update',
+      data: {
         conversationId,
-        conversation: {
-          tenantId, // CRITICAL: Verify tenant ownership
+        aiData: {
+          summary: updatedConversation?.aiSummary,
+          priority: updatedConversation?.aiPriority,
+          tags: updatedConversation?.aiTags,
+          updatedAt: updatedConversation?.aiUpdatedAt?.toISOString(),
         },
       },
-      orderBy: { createdAt: 'desc' },
-      take: 30,
-      select: {
-        id: true,
-        contentText: true,
-        senderType: true,
-        createdAt: true,
-      },
     });
 
-    if (messages.length === 0) {
-      logger.info({ conversationId, tenantId }, 'No messages to analyze');
-      return { analyzed: false, reason: 'no_messages' };
-    }
+    logger.info('✅ AI analysis job completed', { conversationId });
 
-    // Reverse to have chronological order for AI
-    messages.reverse();
-
-    // Call AI analysis
-    const analysis = await analyzeConversation(messages);
-
-    // Map priority string to enum
-    const priorityMap: Record<string, Priority> = {
-      high: Priority.HIGH,
-      medium: Priority.MEDIUM,
-      low: Priority.LOW,
-    };
-
-    // Update conversation with AI results
-    const updated = await prisma.conversation.update({
-      where: { id: conversationId },
-      data: {
-        aiSummary: analysis.summary,
-        aiPriority: priorityMap[analysis.priority],
-        aiTags: analysis.tags,
-        aiUpdatedAt: new Date(),
-      },
-    });
-
-    // Emit socket event to notify clients (tenant-scoped)
-    emitConversationAIUpdate(conversationId, tenantId, {
-      summary: updated.aiSummary,
-      priority: updated.aiPriority,
-      tags: updated.aiTags,
-      updatedAt: updated.aiUpdatedAt,
-    });
-
-    logger.info(
-      { conversationId, priority: analysis.priority, tags: analysis.tags },
-      'Conversation analysis completed'
-    );
-
-    return {
-      analyzed: true,
-      conversationId,
-      priority: analysis.priority,
-      tagsCount: analysis.tags.length,
-    };
+    return { success: true };
   } catch (error) {
-    logger.error({ error, conversationId }, 'Error processing conversation analysis');
+    logger.error('❌ AI analysis job failed', {
+      conversationId,
+      tenantId,
+      error: error instanceof Error ? error.message : String(error),
+    });
     throw error;
   }
 }

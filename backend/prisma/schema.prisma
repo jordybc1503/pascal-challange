@@ -63,6 +63,9 @@ model Tenant {
   createdAt DateTime @default(now()) @map("created_at")
   updatedAt DateTime @updatedAt @map("updated_at")
 
+  // AI Configuration
+  aiConfig  Json?    @map("ai_config") // { provider: "gemini", apiKey: "...", model: "...", updatePolicy: {...} }
+
   // Relations
   users             User[]
   leads             Lead[]
@@ -163,10 +166,18 @@ model Conversation {
   lastMessageAt         DateTime?           @map("last_message_at")
   lastMessageSenderType SenderType?         @map("last_message_sender_type")
   lastAgentReplyAt      DateTime?           @map("last_agent_reply_at")
-  aiSummary             String?             @map("ai_summary")
+
+  // AI Fields
+  aiSummary             String?             @map("ai_summary") @db.Text
+  aiSummaryVersion      Int                 @default(0) @map("ai_summary_version")
+  aiSummaryUpdatedAt    DateTime?           @map("ai_summary_updated_at")
   aiPriority            Priority?           @map("ai_priority")
   aiTags                String[]            @default([]) @map("ai_tags")
+  aiMetadata            Json?               @map("ai_metadata") // { priorityReason: "...", tagConfidences: {...}, lastAnalyzedMessageId: "..." }
   aiUpdatedAt           DateTime?           @map("ai_updated_at")
+  aiUpdatePolicy        Json?               @map("ai_update_policy") // { mode: "EVERY_N_MESSAGES" | "EVERY_X_MINUTES", n?: number, minutes?: number }
+  messagesSinceLastAI   Int                 @default(0) @map("messages_since_last_ai")
+
   createdAt             DateTime            @default(now()) @map("created_at")
   updatedAt             DateTime            @updatedAt @map("updated_at")
 
